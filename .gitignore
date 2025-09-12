@@ -15,3 +15,7 @@
 *.sx32fsl
 *.wx64fsl
 *.wx32fsl
+user-loads/.DS_Store
+user-loads/actr-piano-files/.DS_Store
+*.lisp~
+.DS_Store
