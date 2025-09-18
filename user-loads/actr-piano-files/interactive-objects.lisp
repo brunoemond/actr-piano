@@ -52,26 +52,18 @@ Interfaces link a device to one or many modules. which support act-r distributed
 
 (defmethod component-name ((instance interactive-object))
   (name instance))
+;;;
+;;; interactive-objects as components.
+;;;
+(defun isa-component (component-name)
+  (get-component-fct (->symbol component-name)))
 
-(defun component-p (name)
-  (let ((mp (current-mp)))
-    (aif (assoc name (bt:with-lock-held ((meta-p-component-lock mp))
-                       (meta-p-component-list mp)))
-       (values (act-r-component-instance (cdr it)) t)
-         (values (print-warning "~s does not name a current component." name) nil))))
+(defmethod (setf isa-component) ((instance null) component-name)
+  (undefine-component-fct (->symbol component-name)))
 
-(defun remove-component (name)
-  (when (component-p name)
-    (undefine-component-fct name)))
-
-(defun isa-component (name)
-  (get-component-fct (->symbol name)))
-
-(defmethod (setf isa-component) ((instance interactive-object) name)
-  (remove-component name)
-  ;; For all model operators, the initial instance created is used. 
+(defmethod (setf isa-component) ((instance interactive-object) component-name) 
   (define-component-fct 
-   name 
+   (setf (slot-value instance 'name) (->symbol component-name)) 
    :version (version instance) 
    :documentation (doc instance)
    :creation (lambda () instance)
@@ -82,23 +74,41 @@ Interfaces link a device to one or many modules. which support act-r distributed
    :before-reset nil
    :after-reset nil))
 
-#|
 (progn
-  (remove-component 'test)
-  ;; there is no compenent test yet
+  (clear-all)
+
+  ; There is no component named 'test
   (assert (null (isa-component 'test)))
-  ;; Creation of a test component as an interactive object
-  (setf (isa-component 'test)
-        (make-instance 'interactive-object))
 
+  ;; Define a component named 'test as an interactive object instance
+  (setf (isa-component 'test) (make-instance 'interactive-object))
+
+  ; There is a component named 'test
   (assert (isa-component 'test))
 
-  (assert (isa-component 'test))
-  
-  (define-model test)
-  (delete-model test))
+  ;; Undefine the component named 'test
+  (setf (isa-component 'test) nil)
 
-|#
+  ; There is no component named 'test
+  (assert (null (isa-component 'test)))
+  )
+
+;;;
+;;; interactive-object components as devices
+;;;
+(defun isa-device (device-name)
+  (and (member (->string device-name) (defined-devices) :test #'equalp)
+       (isa-component (->symbol device-name))))
+
+(defmethod (setf isa-device) ((instance null) device-name)
+  (undefine-device (->string device-name)))
+
+(defmethod initialize-object ())
+
+
+(defmethod (setf isa-device) ((component-name symbol) device-name)
+  )
+
 
 
 ;;; eof
