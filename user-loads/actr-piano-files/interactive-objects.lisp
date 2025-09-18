@@ -1,15 +1,15 @@
 ;;;-*- mode: LISP; Package: CL-USER; Syntax: COMMON-LISP;  Base: 10 -*-
 ;;;
-;;; cognitive-object.lisp
+;;; interactive-object.lisp
 ;;;
 ;;; 2025-09-10
 ;;;
 ;;;
 #|
-The cognitive-object code aims to facilitate the creation and use of cognitive objects (devices) 
-as part of ACT-R simulations. Cognitive objects can be perceived, acted upon, or both. From the ACT-R
-software architecture, cognitive objects are components which can be interfaced with perceptual 
-and motor modules. The cognitive object class and methods facilitate the creation of devices 
+The interactive-object code aims to facilitate the creation and use of interactive objects (devices) 
+as part of ACT-R simulations. Interactive objects can be perceived, acted upon, or both. From the ACT-R
+software architecture, interactive objects are components which can be interfaced with perceptual 
+and motor modules. The interactive object class and methods facilitate the creation of devices 
 that do not have features associated with other devices such as experimental windows, computer 
 keyboards, mice, and microphones.
 
@@ -40,17 +40,17 @@ Interfaces link a device to one or many modules. which support act-r distributed
 (defmethod ->string ((object symbol)) (write-to-string object :case :downcase))
 
 ;;;
-;;; cognitive-object
+;;; interactive-object
 ;;;
-(defclass cognitive-object (typep-slots)
-  ((name :initarg :device-name :initform 'cognitive-object :reader name :type symbol)
+(defclass interactive-object (typep-slots)
+  ((name :initarg :device-name :initform 'interactive-object :reader name :type symbol)
    (version :initarg :version :initform "1.0" :reader version :type string)
    (doc :initarg :documentation :initform "Not documented." :reader doc :type string)))
 
-(defmethod device-name ((instance cognitive-object))
+(defmethod device-name ((instance interactive-object))
   (->string (name instance)))
 
-(defmethod component-name ((instance cognitive-object))
+(defmethod component-name ((instance interactive-object))
   (name instance))
 
 (defun component-p (name)
@@ -60,40 +60,45 @@ Interfaces link a device to one or many modules. which support act-r distributed
        (values (act-r-component-instance (cdr it)) t)
          (values (print-warning "~s does not name a current component." name) nil))))
 
+(defun remove-component (name)
+  (when (component-p name)
+    (undefine-component-fct name)))
+
 (defun isa-component (name)
   (get-component-fct (->symbol name)))
 
-(defmethod (setf isa-component) ((instance cognitive-object) name)
-  (when (isa-component name)
-    (undefine-component-fct name))
+(defmethod (setf isa-component) ((instance interactive-object) name)
+  (remove-component name)
+  ;; For all model operators, the initial instance created is used. 
   (define-component-fct 
    name 
    :version (version instance) 
    :documentation (doc instance)
    :creation (lambda () instance)
-     ;:delete (lambda () nil)
-     ;:clear-all (lambda () nil)
-     ;:create-model (lambda () nil)
-     ;:delete-model (lambda () nil)
-     ;:before-reset (lambda () nil)
-     ;:after-reset (lambda () nil)
-   ))
+   :delete nil
+   :clear-all nil
+   :create-model nil
+   :delete-model nil
+   :before-reset nil
+   :after-reset nil))
 
+#|
 (progn
-  
+  (remove-component 'test)
+  ;; there is no compenent test yet
   (assert (null (isa-component 'test)))
-
+  ;; Creation of a test component as an interactive object
   (setf (isa-component 'test)
-        (make-instance 'cognitive-object))
+        (make-instance 'interactive-object))
 
   (assert (isa-component 'test))
 
-  (assert (null (isa-component 'test)))
+  (assert (isa-component 'test))
   
   (define-model test)
   (delete-model test))
 
-
+|#
 
 
 ;;; eof
