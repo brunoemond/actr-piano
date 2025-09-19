@@ -76,6 +76,7 @@ Interfaces link a device to one or many modules. which support act-r distributed
 
 (progn
   (clear-all)
+  (setf (isa-component 'test) nil)
 
   ; There is no component named 'test
   (assert (null (isa-component 'test)))
@@ -103,12 +104,43 @@ Interfaces link a device to one or many modules. which support act-r distributed
 (defmethod (setf isa-device) ((instance null) device-name)
   (undefine-device (->string device-name)))
 
-(defmethod initialize-object ())
+(defun devlist-interface (device-list)
+  (first device-list))
 
+(defun devlist-device (device-list)
+  (second device-list))
+
+(defmethod initialize-object ((device-list list))
+  (initialize-object (isa-device (devlist-device device-list))))
+
+(defmethod initialize-object ((instance interactive-object))
+  instance)
+
+(add-act-r-command "initialize-object" 'initialize-object 
+                   "Generic method to initialize an interactive object. Do not call directly.")
 
 (defmethod (setf isa-device) ((component-name symbol) device-name)
-  )
+  (if (eq component-name (->symbol device-name))
+      (define-device device-name 
+                     "initialize-object" nil nil)))
 
+
+(progn
+  (clear-all)
+  (setf (isa-component 'test) nil)
+  (setf (isa-device "test") nil)
+
+  ;; Define a component named 'test as an interactive object instance
+  (setf (isa-component 'test) (make-instance 'interactive-object))
+
+  ; There is a component named 'test
+  (assert (null (isa-device "test")))
+
+  (setf (isa-device "test") 'test)
+
+  ;(setf (isa-component 'test) nil)
+  ;(setf (isa-device "test") nil)
+  )
 
 
 ;;; eof
