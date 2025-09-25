@@ -39,31 +39,34 @@ Interfaces link a device to one or many modules. which support act-r distributed
 (defmethod ->string ((object string)) object)
 (defmethod ->string ((object symbol)) (write-to-string object :case :downcase))
 
+;;; types
+(defun isa-list-of-strings (list)
+  (every #'stringp list))
+
+(deftype list-of-strings ()
+  `(satisfies isa-list-of-strings))
+
 ;;;
 ;;; interactive-object
 ;;;
 (defclass interactive-object (typep-slots)
-  ((name :initarg :device-name :initform 'interactive-object :reader name :type symbol)
+  ((name :initarg :name :initform 'interactive-object :reader name :type symbol)
    (version :initarg :version :initform "1.0" :reader version :type string)
-   (doc :initarg :documentation :initform "Not documented." :reader doc :type string)))
-
-(defmethod device-name ((instance interactive-object))
-  (->string (name instance)))
-
-(defmethod component-name ((instance interactive-object))
-  (name instance))
+   (doc :initarg :documentation :initform "Not documented." :reader doc :type string)
+   (interfaces :initarg :interfaces :initform nil :type list-of-strings :reader interfaces)))
+   
 ;;;
 ;;; interactive-objects as components.
 ;;;
 (defun isa-component (component-name)
   (get-component-fct (->symbol component-name)))
 
-(defmethod (setf isa-component) ((instance null) component-name)
-  (undefine-component-fct (->symbol component-name)))
+(defmethod (setf isa-component) ((instance null) (component-name symbol))
+  (undefine-component-fct component-name))
 
-(defmethod (setf isa-component) ((instance interactive-object) component-name) 
+(defmethod (setf isa-component) ((instance interactive-object) (component-name symbol)) 
   (define-component-fct 
-   (setf (slot-value instance 'name) (->symbol component-name)) 
+   component-name
    :version (version instance) 
    :documentation (doc instance)
    :creation (lambda () instance)
@@ -75,7 +78,6 @@ Interfaces link a device to one or many modules. which support act-r distributed
    :after-reset nil))
 
 (progn
-  (clear-all)
   (setf (isa-component 'test) nil)
 
   ; There is no component named 'test
@@ -90,9 +92,19 @@ Interfaces link a device to one or many modules. which support act-r distributed
   ;; Undefine the component named 'test
   (setf (isa-component 'test) nil)
 
-  ; There is no component named 'test
-  (assert (null (isa-component 'test)))
   )
+
+;;;
+;;; device-list
+;;;
+(defun devlist-interface (device-list)
+  (first device-list))
+
+(defun devlist-device (device-list)
+  (second device-list))
+
+(defun devlist-details (device-list)
+  (third device-list))
 
 ;;;
 ;;; interactive-object components as devices
@@ -104,20 +116,35 @@ Interfaces link a device to one or many modules. which support act-r distributed
 (defmethod (setf isa-device) ((instance null) device-name)
   (undefine-device (->string device-name)))
 
-(defun devlist-interface (device-list)
-  (first device-list))
 
-(defun devlist-device (device-list)
-  (second device-list))
+(
 
-(defmethod initialize-object ((device-list list))
-  (initialize-object (isa-device (devlist-device device-list))))
 
-(defmethod initialize-object ((instance interactive-object))
+
+
+;; 5 methods can be associated to a device
+;; initialize, remove, notify, set-hand, unset-hands
+
+;; initialize-object returns the component associated to the device-name
+(defmethod initialize-device ((instance interactive-object))
   instance)
 
-(add-act-r-command "initialize-object" 'initialize-object 
-                   "Generic method to initialize an interactive object. Do not call directly.")
+(defmethod initialize-device ((device-list list))
+  ;; assumes that the component symbol name is the same as the device name. 
+  (initialize-object (isa-component (devlist-device device-list))))
+
+
+
+
+
+
+
+
+
+
+
+(add-act-r-command "initialize-device" 'initialize-device 
+                   "Generic method to return a component from a device-name. Do not call directly.")
 
 (defmethod (setf isa-device) ((component-name symbol) device-name)
   (if (eq component-name (->symbol device-name))
