@@ -47,6 +47,147 @@ Interfaces link a device to one or many modules. which support act-r distributed
   `(satisfies isa-list-of-strings))
 
 ;;;
+;;; device-list
+;;;
+(defun devlist-interface (device-list)
+  (first device-list))
+
+(defun devlist-device (device-list)
+  (second device-list))
+
+(defun devlist-details (device-list)
+  (third device-list))
+
+;;;
+;;; device
+;;;
+
+(defstruct (device (:include act-r-device)) instance)
+
+(defun instance (device)
+  (if (typep device 'device)
+      (device-instance device)
+    (warn "Device ~S does not have an instance slot." device)))
+
+(defun isa-device (device-name)
+  (let ((di *default-device-interface*))
+    (bt:with-lock-held ((device-tables-lock di))
+      (multiple-value-bind (device defined)
+          (gethash (->string device-name) (device-table di))
+        (if defined (instance device)
+          (warn "Unknown device ~S." device-name))))))
+
+(defmethod (setf isa-device) ((instance null) device-name)
+  (undefine-device (->string device-name)))
+
+(defmethod apply-notification ((devlist list) (features list))
+  (apply-notification (isa-device (devlist-device devlist)) 
+                      features))
+
+(defmethod apply-notification ((instance standard-object) (features list))
+  (let ((function (getf features :function)))
+    (if function 
+        (progn (remf features :function)
+          (apply 'dispatch-apply (append (list function instance) features)))
+      (warn "Cannot apply a notification. Features list ~S does not contain a function or command name." features))))
+
+(add-act-r-command "apply-notification" 'apply-notification "Applies a features function to a device. Params: device-list 'features'" nil)
+
+(defmethod (setf isa-device) (instance device-name)
+  (let ((di *default-device-interface*)
+        (device (make-device :instance instance :notification "apply-notification")))
+    (when (define-device device-name)
+      (bt:with-lock-held ((device-tables-lock di))
+        (setf (gethash device-name (device-table di)) device)))))
+
+
+
+#|
+(defclass test () ((x :initform 2 :accessor x)))
+
+(define-model test)
+(isa-device "test")
+(setf (isa-device "test") (make-instance 'test))
+(install-device '("motor" "test"))
+(notity-device '("motor" "test") '(:function x))
+
+
+(add-act-r-command "apply-notification" 'apply-notification "Applies a features function to a device. Params: device-list 'features'" nil)
+
+(add-act-r-command "x" 'x )
+
+(defun x-monitor (monitored-name parameters success results)
+  (format *act-r-echo-stream* "~S" (list monitored-name parameters success results)))
+
+(add-act-r-command "x-monitor" 'x-monitor)
+
+(monitor-act-r-command "x" "x-monitor")
+
+
+(remove-act-r-command "x")
+(remove-act-r-command "x-monitor")
+
+
+(defun notification-monitor (monitored-name parameters success results)
+  (format *act-r-echo-stream* "~S" (list monitored-name parameters success results)))
+
+
+(add-act-r-command "notification-monitor" 'notification-monitor)
+
+(monitor-act-r-command "apply-notification" "notification-monitor")
+
+|#
+
+
+
+
+  (undefine-device (->string device-name)))
+
+
+
+
+
+    (bt:with-lock-held ((device-tables-lock di))
+      (if (gethash name (device-table di))
+          (print-warning "Device ~s already exists and cannot be created." name)
+        (progn
+          (when init 
+            (unless (check-act-r-command init)
+              (print-warning "Init function ~s specified for device ~s is not available.  Cannot define device."
+                             init name)
+              (return-from define-device)))
+          (when remove 
+            (unless (check-act-r-command remove)
+              (print-warning "Remove function ~s specified for device ~s is not available.  Cannot define device."
+                             remove name)
+              (return-from define-device)))
+          (when notification 
+            (unless (check-act-r-command notification)
+              (print-warning "Notification function ~s specified for device ~s is not available.  Cannot define device."
+                             notification name)
+              (return-from define-device)))
+          (when set-hand 
+            (unless (check-act-r-command set-hand)
+              (print-warning "Set-hand function ~s specified for device ~s is not available.  Cannot define device."
+                             set-hand name)
+              (return-from define-device)))
+          (when unset-hand 
+            (unless (check-act-r-command unset-hand)
+              (print-warning "Unset-hand function ~s specified for device ~s is not available.  Cannot define device."
+                             unset-hand name)
+              (return-from define-device)))
+          (setf (gethash name (device-table di)) (make-act-r-device :init init :remove remove :notification notification :set set-hand :unset unset-hand))
+          t))))
+
+
+
+
+
+
+
+
+
+;;;
 ;;; interactive-object
 ;;;
 (defclass interactive-object (typep-slots)
@@ -94,28 +235,11 @@ Interfaces link a device to one or many modules. which support act-r distributed
 
   )
 
-;;;
-;;; device-list
-;;;
-(defun devlist-interface (device-list)
-  (first device-list))
 
-(defun devlist-device (device-list)
-  (second device-list))
-
-(defun devlist-details (device-list)
-  (third device-list))
 
 ;;;
 ;;; interactive-object components as devices
 ;;;
-(defun isa-device (device-name)
-  (and (member (->string device-name) (defined-devices) :test #'equalp)
-       (isa-component (->symbol device-name))))
-
-(defmethod (setf isa-device) ((instance null) device-name)
-  (undefine-device (->string device-name)))
-
 
 (
 
