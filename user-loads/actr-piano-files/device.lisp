@@ -1,8 +1,8 @@
 ;;;-*- mode: LISP; Package: CL-USER; Syntax: COMMON-LISP;  Base: 10 -*-
 ;;;
-;;; interactive-object.lisp
+;;; device.lisp
 ;;;
-;;; 2025-09-10
+;;; 2025-09-29
 ;;;
 ;;;
 #|
@@ -58,15 +58,37 @@ Interfaces link a device to one or many modules. which support act-r distributed
 (defun devlist-details (device-list)
   (third device-list))
 
+
 ;;;
 ;;; device
 ;;;
+(defclass device () 
+  ((interfaces :initarg :interfaces :initform nil :reader interfaces)))
 
-(defstruct (device (:include act-r-device)) instance)
+(defclass vision-device (device)
+  ()
+  (:default-initargs
+   :interfaces '("vision")))
+
+(defclass motor-device (device)
+  ()
+  (:default-initargs
+   :interfaces '("motor")))
+
+(defclass vision-motor-device (device)
+  ()
+  (:default-initargs
+   :interfaces '("vision" "motor")))
+
+;;;
+;;; act-r-device-with-instance
+;;;
+
+(defstruct (device-with-instance (:include act-r-device)) instance)
 
 (defun instance (device)
   (if (typep device 'device)
-      (device-instance device)
+      (device-with-instance-instance device)
     (warn "Device ~S does not have an instance slot." device)))
 
 (defun isa-device (device-name)
@@ -84,7 +106,7 @@ Interfaces link a device to one or many modules. which support act-r distributed
   (apply-notification (isa-device (devlist-device devlist)) 
                       features))
 
-(defmethod apply-notification ((instance standard-object) (features list))
+(defmethod apply-notification ((instance device) (features list))
   (let ((function (getf features :command)))
     (if function 
         (progn (remf features :command)
@@ -95,10 +117,14 @@ Interfaces link a device to one or many modules. which support act-r distributed
 
 (defmethod (setf isa-device) (instance device-name)
   (let ((di *default-device-interface*)
-        (device (make-device :instance instance :notification "apply-notification")))
+        (device (make-device-with-instance :instance instance :notification "apply-notification")))
     (when (define-device device-name)
       (bt:with-lock-held ((device-tables-lock di))
-        (setf (gethash device-name (device-table di)) device)))))
+        (dolist (interface (interfaces device)
+                           (setf (gethash device-name (device-table di)) device))
+          (install-device (list interface device-name)))))))
+
+
 
 
 
@@ -125,97 +151,6 @@ Interfaces link a device to one or many modules. which support act-r distributed
 (remove-act-r-command "x-m")
 
 
-|#
-
-;;;
-;;; interactive-object
-;;;
-(defclass interactive-object (typep-slots)
-  ((name :initarg :name :initform 'interactive-object :reader name :type symbol)
-   (version :initarg :version :initform "1.0" :reader version :type string)
-   (doc :initarg :documentation :initform "Not documented." :reader doc :type string)
-   (interfaces :initarg :interfaces :initform nil :type list-of-strings :reader interfaces)))
-   
-;;;
-;;; interactive-objects as components.
-;;;
-(defun isa-component (component-name)
-  (get-component-fct (->symbol component-name)))
-
-(defmethod (setf isa-component) ((instance null) (component-name symbol))
-  (undefine-component-fct component-name))
-
-(defmethod (setf isa-component) ((instance interactive-object) (component-name symbol)) 
-  (define-component-fct 
-   component-name
-   :version (version instance) 
-   :documentation (doc instance)
-   :creation (lambda () instance)
-   :delete nil
-   :clear-all nil
-   :create-model nil
-   :delete-model nil
-   :before-reset nil
-   :after-reset nil))
-
-(progn
-  (setf (isa-component 'test) nil)
-
-  ; There is no component named 'test
-  (assert (null (isa-component 'test)))
-
-  ;; Define a component named 'test as an interactive object instance
-  (setf (isa-component 'test) (make-instance 'interactive-object))
-
-  ; There is a component named 'test
-  (assert (isa-component 'test))
-
-  ;; Undefine the component named 'test
-  (setf (isa-component 'test) nil)
-
-  )
-
-
-
-;;;
-;;; interactive-object components as devices
-;;;
-
-(
-
-
-
-
-;; 5 methods can be associated to a device
-;; initialize, remove, notify, set-hand, unset-hands
-
-;; initialize-object returns the component associated to the device-name
-(defmethod initialize-device ((instance interactive-object))
-  instance)
-
-(defmethod initialize-device ((device-list list))
-  ;; assumes that the component symbol name is the same as the device name. 
-  (initialize-object (isa-component (devlist-device device-list))))
-
-
-
-
-
-
-
-
-
-
-
-(add-act-r-command "initialize-device" 'initialize-device 
-                   "Generic method to return a component from a device-name. Do not call directly.")
-
-(defmethod (setf isa-device) ((component-name symbol) device-name)
-  (if (eq component-name (->symbol device-name))
-      (define-device device-name 
-                     "initialize-object" nil nil)))
-
-
 (progn
   (clear-all)
   (setf (isa-component 'test) nil)
@@ -232,6 +167,11 @@ Interfaces link a device to one or many modules. which support act-r distributed
   ;(setf (isa-component 'test) nil)
   ;(setf (isa-device "test") nil)
   )
+
+|#
+
+
+
 
 
 ;;; eof
