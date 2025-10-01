@@ -12,6 +12,7 @@
        '(
          ;; Common lisp utilities
          "typep-slots.lisp"
+         "device-interface.lisp"
 
          )))
 
