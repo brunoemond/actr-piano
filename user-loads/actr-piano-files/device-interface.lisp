@@ -21,13 +21,6 @@
         unless (eq k key)
         append (list k v)))
 
-;;; types
-(defun isa-list-of-strings (list)
-  (every #'stringp list))
-
-(deftype list-of-strings ()
-  `(satisfies isa-list-of-strings))
-
 ;;;
 ;;; device-list
 ;;;
@@ -39,6 +32,13 @@
 
 (defun devlist-details (device-list)
   (third device-list))
+
+;;;
+;;; pm-device
+;;;
+(defclass vision-device ()
+  (visicon-id visicon-features))
+
 
 
 ;;;

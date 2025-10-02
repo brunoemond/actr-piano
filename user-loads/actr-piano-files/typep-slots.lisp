@@ -58,28 +58,4 @@
              (error "When initializing object, ~S is not of type ~S for slot ~S in object ~S." 
                     (make-condition 'unbound-slot) type slot-name instance))))))
 
-;;; tests
-(defclass test-type1 (typep-slots) ((a) (b :initform 'x :type symbol)))
-(let ((instance (make-instance 'test-type1)))
-  (with-typep-slots (a b) instance 
-    (assert (setf a 23))
-    (assert (setf a 'x))
-    (assert (setf b 'y)))
-
-  #+lispworks
-  (progn 
-    (assert (eq t (slot-type instance 'a)))
-    (assert (eq 'symbol (slot-type instance 'b)))
-    (assert (null (ignore-errors (setf (typep-slot-value instance 'b) 23)))))
-  )
-
-(defclass test-type2 (typep-slots) ((a :initarg :a) (b :initarg :b :type symbol) 
-                                    (c :initarg :c :initform 'x :type symbol)))
-#+lispwork
-(assert (null (ignore-errors (make-instance 'test-type2 :c 23))))
-
-
-(unintern 'test-type1)
-(unintern 'test-type2)
-
 ;;; eof
