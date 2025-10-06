@@ -41,16 +41,18 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
             (fstatus key) *empty-value*)
       (modify-visicon key))))
 
+(defun find-key-from-xy (xy)
+  (let ((instance (device-instance "piano-kbd")))
+    (find xy (surface-collection instance) :key #'xy :test #'equalp)))
+
 (defun place-right-hand (xy)
   (clear-fingers)
-  (let ((anchor (find xy (surface-collection (device-instance "piano-kbd"))
-                      :key #'xy :test #'equalp)))
+  (let ((anchor (find-key-from-xy xy)))
     (setf (finger anchor) 'r1)
     (modify-visicon anchor))
   (let ((x (x xy)) (y (y xy)))
     (dolist (finger-name '(r2 r3 r4 r5))
-      (let ((key (find (list (incf x) y) (surface-collection (device-instance "piano-kbd"))
-                       :key #'xy :test #'equalp)))
+      (let ((key (find-key-from-xy (list (incf x) y))))
         (setf (finger key) finger-name)
         (modify-visicon key)))))
     
