@@ -33,13 +33,13 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
    :visual-features '(black-group)))
 
 (let ((kbd (make-instance 'piano-kbd :xy '(0 0)))
-      (c (make-instance 'piano-key :xy '(0 0) :black-group 'b2))
-      (d (make-instance 'piano-key :xy '(1 0) :black-group 'b2))
-      (e (make-instance 'piano-key :xy '(2 0) :black-group 'b2))
-      (f (make-instance 'piano-key :xy '(3 0) :black-group 'b3))
-      (g (make-instance 'piano-key :xy '(4 0) :black-group 'b3))
-      (a (make-instance 'piano-key :xy '(5 0) :black-group 'b3))
-      (b (make-instance 'piano-key :xy '(6 0) :black-group 'b3)))
+      (c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2))
+      (d (make-instance 'piano-key :xy '(1 0) :color 'white :black-group 'b2))
+      (e (make-instance 'piano-key :xy '(2 0) :color 'white :black-group 'b2))
+      (f (make-instance 'piano-key :xy '(3 0) :color 'white :black-group 'b3))
+      (g (make-instance 'piano-key :xy '(4 0) :color 'white :black-group 'b3))
+      (a (make-instance 'piano-key :xy '(5 0) :color 'white :black-group 'b3))
+      (b (make-instance 'piano-key :xy '(6 0) :color 'white :black-group 'b3)))
       
   ;; adding elements to a top visicon-object
   (setf (surface-collection kbd) (list c d e f g a b))

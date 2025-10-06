@@ -165,6 +165,8 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
    (set-visicon-ids object (car (add-visicon-features (visual-object-features object :isa t))))
    object))
 
+(add-act-r-command "add-to-visicon" 'add-to-visicon)
+
 (defmethod delete-from-visicon ((object visicon-object))
   (with-slots (feature-id visual-location) object 
     (when (member feature-id (visicon (get-module :vision)))
@@ -174,12 +176,16 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
     (setf feature-id nil
           visual-location nil)))
 
+(add-act-r-command "delete-from-visicon" 'delete-from-visicon)
+
 (defmethod modify-visicon ((object visicon-object))
   (let ((features (visual-object-features object))
         (feature-id (slot-value object 'feature-id)))
     (when feature-id
       (modify-visicon-features 
        (append (list feature-id) features)))))
+
+(add-act-r-command "modify-visicon" 'modify-visicon)
 
 ;; to do 
 ;; find-visicon-object: traverse the hierarchy of object collections 

@@ -40,6 +40,10 @@
   (visicon-id visicon-features))
 
 
+; current-devices interface)
+; add a function to test it a device is installed for an interface
+; 
+
 
 ;;;
 ;;; device-interface
