@@ -33,6 +33,11 @@
 (defun devlist-details (device-list)
   (third device-list))
 
+
+
+
+
+
 ;;;
 ;;; pm-device
 ;;;
@@ -46,7 +51,7 @@
 
 
 ;;;
-;;; device-interface
+;;; device-interface 
 ;;;
 (defmacro with-di-lock (&body body)
   `(let ((di *default-device-interface*))
@@ -85,6 +90,9 @@
                      :notification "apply-device-command")))
         (setf (gethash device-name (device-table di)) device)))))
 
+;; apply-device-command is called by notify-device that checks if the devide is installed for an interface
+;; (notify-device device-list feature)
+
 (defmethod apply-device-command ((instance standard-object) (features list))
   (let ((command-name (getf features :command)))
     (if command-name 
@@ -95,7 +103,57 @@
 (defmethod apply-device-command ((device-name string) (features list))
   (apply-device-command (device-instance device-name) features))
 
-(add-act-r-command "apply-device-command" 'apply-device-command "Applies a features command to a device. Params: device-list 'features'" nil)
+(defmethod apply-device-command ((devlist list) (features list))
+  (apply-device-command (devlist-device devlist) features))
+
+(add-act-r-command "apply-device-command" 'apply-device-command)
+
+;;;
+;;; interface-notifications
+;;;
+
+(defmethod interface-notification% ((interface-name string))
+  (with-di-lock
+    (interface-notification (gethash interface-name (interface-table di)))))
+
+(defmethod (setf interface-notification%) ((command-name string) (interface-name string))
+  (with-di-lock
+    (setf (interface-notification (gethash interface-name (interface-table di)))
+          command-name)))
+
+(defun act-r-commandp (name)
+  (let ((command (gethash name (dispatcher-command-table *dispatcher*))))
+    (and command (fboundp (dispatch-command-underlying-function command)))))
+
+(defun extend-interface-notification (params)
+  (if (or (act-r-commandp (car params))
+          (fboundp (car params)))
+      (apply (car params) (cdr params))
+    (print-warning "Unknown command ~S and parameters ~S." (car params) (cdr params))))
+
+(defparameter *basic-motor-commands*
+  '(set-hand-device set-hand-position set-finger-offset get-hand-device get-hand-position get-finger-position))
+                    
+(defun apply-motor-command (params)
+  (if (member (car params) *basic-motor-commands*)
+      (motor-interface params)
+    (progn
+      (print-warning "Extending motor-interface notification with action ~S and parameters ~S."
+                     (car params) (cdr params))
+      (extend-interface-notification params))))
+
+(add-act-r-command "apply-motor-command" 'apply-motor-command)
+
+(setf (interface-notification% "motor") 
+      "apply-motor-command")
+
+(defun apply-vision-command (params)
+  (extend-interface-notification params))
+
+(add-act-r-command "apply-vision-command" 'apply-vision-command)
+
+(setf (interface-notification% "vision") 
+      "apply-vision-command")
 
 
 
