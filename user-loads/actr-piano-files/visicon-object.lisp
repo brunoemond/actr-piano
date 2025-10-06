@@ -31,12 +31,18 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
 (defmethod (setf surface-collection) ((collection-elements list) (instance surface))
   (dolist (collection-element collection-elements (surface-collection instance))
     (setf (surface-collection instance) collection-element)))
-       
-(defun x (surface)
-  (first (xy surface)))
+ 
+(defmethod x ((instance list))
+  (first instance))
 
-(defun y (surface)
-  (second (xy surface)))
+(defmethod y ((instance list))
+  (second instance))
+
+(defmethod x ((instance surface))
+  (first (xy instance)))
+
+(defmethod y ((instance surface))
+  (second (xy instance)))
 
 (defun w (surface)
   (first (wh surface)))

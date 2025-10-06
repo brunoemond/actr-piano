@@ -29,11 +29,31 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
 (defclass piano-kbd (visicon-object) ())
 (defclass piano-key (visicon-object) 
   ((black-group :type symbol :initform nil :initarg :black-group :reader black-group)
-   (finger :type symbol :initform *empty-value* :initarg :finger :reader finger)
-   (fstatus :type symbol :initform *empty-value* :initarg :fstatus :reader fstatus))
+   (finger :type symbol :initform *empty-value* :initarg :finger :accessor finger)
+   (fstatus :type symbol :initform *empty-value* :initarg :fstatus :accessor fstatus))
   (:default-initargs
    :visual-features '(black-group finger fstatus)))
 
+(defun clear-fingers ()
+  (let ((instance (device-instance "piano-kbd")))
+    (dolist (key (surface-collection instance))
+      (setf (finger key) *empty-value*
+            (fstatus key) *empty-value*)
+      (modify-visicon key))))
+
+(defun place-right-hand (xy)
+  (clear-fingers)
+  (let ((anchor (find xy (surface-collection (device-instance "piano-kbd"))
+                      :key #'xy :test #'equalp)))
+    (setf (finger anchor) 'r1)
+    (modify-visicon anchor))
+  (let ((x (x xy)) (y (y xy)))
+    (dolist (finger-name '(r2 r3 r4 r5))
+      (let ((key (find (list (incf x) y) (surface-collection (device-instance "piano-kbd"))
+                       :key #'xy :test #'equalp)))
+        (setf (finger key) finger-name)
+        (modify-visicon key)))))
+    
 (defparameter *piano-kbd* 
   (let ((kbd (make-instance 'piano-kbd :xy '(0 0)))
         (c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2 :finger 'r1))
@@ -90,12 +110,18 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
 
     (run-n-events 5)
     (print-visicon)
-    (run 3))
+    (run 3)
+
+    (place-right-hand '(2 0))
+    (run-n-events 5)
+    (print-visicon)
+    (run 3)
+    )
 
   
 
   (delete-model test)
-  (setf (device-instance "piano-kbd") nil)
+  ;(setf (device-instance "piano-kbd") nil)
   )
 
 
