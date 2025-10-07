@@ -34,15 +34,11 @@
   (third device-list))
 
 
-
-
-
-
 ;;;
 ;;; pm-device
 ;;;
-(defclass vision-device ()
-  (visicon-id visicon-features))
+;(defclass vision-device ()
+;  (visicon-id visicon-features))
 
 
 ; current-devices interface)
@@ -51,7 +47,7 @@
 
 
 ;;;
-;;; device-interface 
+;;; device-interface tables
 ;;;
 (defmacro with-di-lock (&body body)
   `(let ((di *default-device-interface*))
@@ -63,6 +59,48 @@
 
 (defun describe-interfaces ()
   (describe (interface-table *default-device-interface*)))
+
+
+;;;
+;;; device and interface notification 
+;;; (notify-device device-list features)
+;;; (notify-interface name features)
+
+(defun device-notification-command (device-name)
+  (with-di-lock
+    (multiple-value-bind (device defined)
+        (gethash (->string device-name) (device-table di))
+      (if defined (act-r-device-notification device)
+        (warn "Unknown device ~S." device-name)))))
+
+(defun act-r-commandp (name)
+  (let ((command (gethash name (dispatcher-command-table *dispatcher*))))
+    (and command (fboundp (dispatch-command-underlying-function command)))))
+
+(defmethod (setf device-notification-command) ((command-name string) (device-name string))
+  (if (act-r-commandp command-name)
+      (with-di-lock
+        (multiple-value-bind (device defined)
+            (gethash (->string device-name) (device-table di))
+          (if defined (setf (act-r-device-notification device) command-name)
+            (warn "Unknown device ~S." device-name))))
+    (warn "Unknown actr-command ~S." command-name)))
+
+(defun interface-notification-command (interface-name)
+  (with-di-lock
+    (multiple-value-bind (interface defined)
+        (gethash (->string interface-name) (interface-table di))
+      (if defined (interface-notification interface)
+        (warn "Unknown inerface ~S." interface-name)))))
+
+(defmethod (setf interface-notification-command) ((command-name string) (interface-name string))
+  (if (act-r-commandp command-name)
+      (with-di-lock
+        (multiple-value-bind (interface defined)
+            (gethash (->string interface-name) (interface-table di))
+          (if defined (setf (interface-notification interface) command-name)
+            (warn "Unknown interface ~S." interface-name))))
+    (warn "Unknown actr-command ~S." command-name)))
 
 ;;;
 ;;; device-with-instance
@@ -121,9 +159,7 @@
     (setf (interface-notification (gethash interface-name (interface-table di)))
           command-name)))
 
-(defun act-r-commandp (name)
-  (let ((command (gethash name (dispatcher-command-table *dispatcher*))))
-    (and command (fboundp (dispatch-command-underlying-function command)))))
+
 
 (defun extend-interface-notification (params)
   (if (or (act-r-commandp (car params))
