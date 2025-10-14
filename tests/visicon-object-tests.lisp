@@ -29,16 +29,16 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
 (defclass piano-kbd (visicon-object) ())
 (defclass piano-key (visicon-object) 
   ((black-group :type symbol :initform nil :initarg :black-group :reader black-group)
-   (finger :type symbol :initform *empty-value* :initarg :finger :accessor finger)
-   (fstatus :type symbol :initform *empty-value* :initarg :fstatus :accessor fstatus))
+   (finger :type symbol :initform +empty-value+ :initarg :finger :accessor finger)
+   (fstatus :type symbol :initform +empty-value+ :initarg :fstatus :accessor fstatus))
   (:default-initargs
    :visual-features '(black-group finger fstatus)))
 
 (defun clear-fingers ()
   (let ((instance (device-instance "piano-kbd")))
     (dolist (key (surface-collection instance))
-      (setf (finger key) *empty-value*
-            (fstatus key) *empty-value*)
+      (setf (finger key) +empty-value+
+            (fstatus key) +empty-value+)
       (modify-visicon key))))
 
 (defun find-key-from-xy (xy)

@@ -8,6 +8,32 @@
 A visicon-object is a surface that can be perceived by actr as a set of visicon-entry.
 |#
 
+;;; types
+(defun isa-coordinate (object)
+  (and (listp object)
+       (eq 2 (length object))
+       (every (lambda (x) (typep x 'number))
+              object)))
+
+(deftype coordinate ()
+  '(satisfies isa-coordinate))
+
+(defun isa-surface-collection (object)
+  (and (listp object)
+       (every (lambda (x) (typep x 'surface)) ;surface ia a class
+              object)))
+
+(deftype surface-collection ()
+  '(satisfies isa-surface-collection))
+
+(defun isa-container (object)
+  (or (null object)
+      (typep object 'surface)))
+
+(deftype container ()
+  '(satisfies isa-container))
+
+
 ;;; surface 
 (defclass surface ()
   ((xy :type coordinate :initform '(0 0) :initarg :xy :reader xy)
@@ -82,8 +108,8 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
 ;;; visicon-object
 (defclass visicon-object (surface)
   ((distance :type number-or-nil :initform nil :initarg :distance :reader distance)
-   (color :type chunk-name-or-empty :initform *empty-value* :initarg :color :reader color)
-   (value :type chunk-name-or-empty :initform *empty-value* :initarg :value :reader value)
+   (color :type chunk-name-or-empty :initform +empty-value+ :initarg :color :reader color)
+   (value :type chunk-name-or-empty :initform +empty-value+ :initarg :value :reader value)
    (feature-id :type symbol :initform nil :reader feature-id)
    (visual-location :type symbol :initform nil :reader visual-location)
    (visual-features :type symbols-set :initform nil :initarg :visual-features)))
@@ -122,7 +148,7 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
         (cond (slot-value
                (list slot-name slot-value))
               ((not (member slot-name *actr-core-features*))
-               (list slot-name *empty-value*))))   
+               (list slot-name +empty-value+))))   
     (error "There is no reader method ~S for object ~S." slot-name visicon-object)))
 
 (defun object->features (visicon-object slot-names)

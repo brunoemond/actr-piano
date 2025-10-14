@@ -5,30 +5,7 @@
 ;;; 2025-10-02
 ;;;
 
-;;; types
-(defun isa-coordinate (object)
-  (and (listp object)
-       (eq 2 (length object))
-       (every (lambda (x) (typep x 'number))
-              object)))
 
-(deftype coordinate ()
-  '(satisfies isa-coordinate))
-
-(defun isa-surface-collection (object)
-  (and (listp object)
-       (every (lambda (x) (typep x 'surface))
-              object)))
-
-(deftype surface-collection ()
-  '(satisfies isa-surface-collection))
-
-(defun isa-container (object)
-  (or (null object)
-      (typep object 'surface)))
-
-(deftype container ()
-  '(satisfies isa-container))
 
 (defun isa-number-or-nil (object)
   (or (null object) 
@@ -51,10 +28,10 @@
 (deftype symbols-set ()
   '(satisfies isa-symbols-set))
 
-(defconstant *empty-value* 'empty)
+(defconstant +empty-value+ 'empty)
 
 (defun isa-chunk-name-or-empty (object)
-  (or (eq object *empty-value*)
+  (or (eq object +empty-value+)
       (typep object 'not-nil-symbol)))
 
 (deftype chunk-name-or-empty ()
