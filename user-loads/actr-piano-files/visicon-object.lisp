@@ -8,42 +8,16 @@
 A visicon-object is a surface that can be perceived by actr as a set of visicon-entry.
 |#
 
-;;; types
-(defun isa-coordinate (object)
-  (and (listp object)
-       (eq 2 (length object))
-       (every (lambda (x) (typep x 'number))
-              object)))
-
-(deftype coordinate ()
-  '(satisfies isa-coordinate))
-
-(defun isa-surface-collection (object)
-  (and (listp object)
-       (every (lambda (x) (typep x 'surface)) ;surface ia a class
-              object)))
-
-(deftype surface-collection ()
-  '(satisfies isa-surface-collection))
-
-(defun isa-container (object)
-  (or (null object)
-      (typep object 'surface)))
-
-(deftype container ()
-  '(satisfies isa-container))
-
-
 ;;; surface 
 (defclass surface ()
   ((xy :type coordinate :initform '(0 0) :initarg :xy :reader xy)
    (wh :type coordinate :initform '(1 1) :initarg :wh :reader wh)
-   (on-surface :type container :initform nil :initarg :on-surface :reader on-surface)
-   (surface-collection :type surface-collection :initform nil :initarg :surface-collection :reader surface-collection)))
+   (on-surface :type '(null-or-type surface) :initform nil :initarg :on-surface :reader on-surface)
+   (surface-collection :type '(set-of surface) :initform nil :initarg :surface-collection :reader surface-collection)))
 
 (defmethod coordinate= (coor1 coor2)
-  (and (isa-coordinate coor1)
-       (isa-coordinate coor2)
+  (and (typep coor1 'coordinate)
+       (typep coor2 'coordinate)
        (equal coor1 coor2)))
 
 (defmethod coordinate= ((s1 surface) (s2 surface))
@@ -107,21 +81,21 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
 
 ;;; visicon-object
 (defclass visicon-object (surface)
-  ((distance :type number-or-nil :initform nil :initarg :distance :reader distance)
-   (color :type chunk-name-or-empty :initform +empty-value+ :initarg :color :reader color)
-   (value :type chunk-name-or-empty :initform +empty-value+ :initarg :value :reader value)
+  ((distance :type '(null-or-type number) :initform nil :initarg :distance :reader distance)
+   (color :type empty-or-symbol :initform +empty+ :initarg :color :reader color)
+   (value :type empty-or-symbol :initform +empty+ :initarg :value :reader value)
    (feature-id :type symbol :initform nil :reader feature-id)
    (visual-location :type symbol :initform nil :reader visual-location)
-   (visual-features :type symbols-set :initform nil :initarg :visual-features)))
+   (visual-features :type '(set-of symbol) :initform nil :initarg :visual-features)))
 
-(defun screen-x (visicon-object) (adjust-x visicon-object))
-(defun screen-y (visicon-object) (adjust-y visicon-object))
-(defun width (visicon-object) (w visicon-object))
-(defun height (visicon-object) (h visicon-object))
-(defun kind (visicon-object) "Set using actr computed value." (declare (ignore visicon-object)) nil)
-(defun size (visicon-object) "Set using actr computed value." (declare (ignore visicon-object)) nil)
-(defun status (visicon-object) "Set using actr computed value." (declare (ignore visicon-object)) nil)
-(defun screen-pos (visicon-object) "Set using actr computed value." (declare (ignore visicon-object)) nil)
+(defmethod screen-x ((instance visicon-object)) (adjust-x instance))
+(defmethod screen-y ((instance visicon-object)) (adjust-y instance))
+(defmethod width ((instance visicon-object)) (w instance))
+(defmethod height ((instance visicon-object)) (h instance))
+(defmethod kind ((instance visicon-object)) "Set using actr computed value." (declare (ignore instance)) nil)
+(defmethod size ((instance visicon-object)) "Set using actr computed value." (declare (ignore instance)) nil)
+(defmethod status ((instance visicon-object)) "Set using actr computed value." (declare (ignore instance)) nil)
+(defmethod screen-pos ((instance visicon-object)) "Set using actr computed value." (declare (ignore instance)) nil)
 
 (defun set-visicon-ids (visicon-object feat-id)
   (with-slots (feature-id visual-location) visicon-object
@@ -148,7 +122,7 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
         (cond (slot-value
                (list slot-name slot-value))
               ((not (member slot-name *actr-core-features*))
-               (list slot-name +empty-value+))))   
+               (list slot-name +empty+))))   
     (error "There is no reader method ~S for object ~S." slot-name visicon-object)))
 
 (defun object->features (visicon-object slot-names)

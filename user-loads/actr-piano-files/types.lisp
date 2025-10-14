@@ -2,40 +2,62 @@
 ;;;
 ;;; types.lisp
 ;;;
-;;; 2025-10-02
+;;; 2025-10-14
 ;;;
 
 
+;;; constants
+(defconstant +empty+ 'empty)
 
-(defun isa-number-or-nil (object)
-  (or (null object) 
-      (typep object 'number)))
 
-(deftype number-or-nil ()
-  '(satisfies isa-number-or-nil))
+;;; types
 
-(defun isa-not-nil-symbol (object)
-  (and (symbolp object)
+(defun isa-set-of (elements element-type)
+  (and (listp elements)
+       (every (lambda (element)
+                (typep element element-type))
+              elements)))
+
+(deftype set-of (&optional (element-type t))
+  (let ((predicate (gensym "PREDICATE")))
+    (setf (symbol-function predicate)
+          (lambda (elements) (isa-set-of elements element-type)))
+    `(satisfies ,predicate)))
+
+(defun isa-null-or-type (object type)
+  (or (null object)
+      (typep object type)))
+
+(deftype null-or-type (&optional (type t))
+  (let ((predicate (gensym "PREDICATE")))
+    (setf (symbol-function predicate)
+          (lambda (object) (isa-null-or-type object type)))
+    `(satisfies ,predicate)))
+
+; (typep '(1 2 3) '(set-of number))
+; (typep 1 '(null-or-type number))
+
+(defun isa-coordinate (object)
+  (and (typep object '(set-of number))
+       (eq 2 (length object))))
+
+(deftype coordinate ()
+  '(satisfies isa-coordinate))
+
+(defun isa-non-nil-symbol (object)
+  (and (symbolp object) 
        (not (null object))))
 
-(deftype not-nil-symbol ()
-  '(satisfies isa-not-nil-symbol))
+(deftype non-nil-symbol ()
+  '(satisfies isa-non-nil-symbol))
 
-(defun isa-symbols-set (object)
-  (every (lambda (x) (typep x 'not-nil-symbol))
-         object))
+(defun isa-empty-or-symbol (object)
+  (or (eq object +empty+) 
+      (isa-non-nil-symbol object)))
 
-(deftype symbols-set ()
-  '(satisfies isa-symbols-set))
+(deftype empty-or-symbol ()
+  '(satisfies isa-empty-or-symbol))
 
-(defconstant +empty-value+ 'empty)
-
-(defun isa-chunk-name-or-empty (object)
-  (or (eq object +empty-value+)
-      (typep object 'not-nil-symbol)))
-
-(deftype chunk-name-or-empty ()
-  '(satisfies isa-chunk-name-or-empty))
 
 
 
