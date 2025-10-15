@@ -5,25 +5,34 @@
 ;;; 2025-10-15
 ;;;
 
-;;; set-of
+(print ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; types" *standard-output*)
+
+;;;
+(print "set-of" *standard-output*)
+;;;
 (assert (typep '(1 2 3) '(set-of number)))
 (assert (not (typep '(1 x 3) '(set-of number))))
 
-;;; null-or-type
+;;;
+(print "null-or-type" *standard-output*)
+;;;
 (assert (typep 1 '(null-or-type number)))
 (assert (typep nil '(null-or-type number)))
 (assert (not (typep t '(null-or-type number))))
 
-;;; empty-or-symbol
+;;;
+(print "empty-or-symbol" *standard-output*)
+;;;
 (assert (typep +empty+ 'empty-or-symbol))
 (assert (typep 'x 'empty-or-symbol))
 (assert (not (typep nil 'empty-or-symbol)))
 
-
-;;; coordinate
-(assert (typep '(1 2) 'coordinate))
-(assert (not (typep '(1 2 3) 'coordinate)))
-(assert (not (typep '(1 x) 'coordinate)))
+;;;
+(print "xy-coordinate" *standard-output*)
+;;;
+(assert (typep '(1 2) 'xy-coordinate))
+(assert (not (typep '(1 2 3) 'xy-coordinate)))
+(assert (not (typep '(1 x) 'xy-coordinate)))
 
 
 ;;; eof

@@ -4,11 +4,10 @@
 ;;;
 ;;; 2025-10-02
 ;;;
-#|
-A visicon-object is a surface that can be perceived by actr as a set of visicon-entries.
-|#
 
-;;; surface
+;;;
+(print "surface" *standard-output*)
+;;;
 (let ((top-surface (make-instance 'surface :xy '(1 1)))
        (sub-surface (make-instance 'surface :xy '(2 3)))
        (subsub-surface (make-instance 'surface :xy '(2 2))))
@@ -24,114 +23,169 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
   (assert (equalp '(5 6) (adjust-xy subsub-surface))) 
   )
 
-
-;; visicon-object
-(defclass piano-kbd (visicon-object) ())
+;;;
+(print "class definitions" *standard-output*)
+;;;
+(defclass piano-kbd (visicon-object) 
+  ((nb-keys :type number :initform 7 :initarg :nb-keys :reader nb-keys))
+  (:default-initargs
+   :visual-features '(nb-keys)))
 (defclass piano-key (visicon-object) 
   ((black-group :type symbol :initform nil :initarg :black-group :reader black-group)
-   (finger :type symbol :initform +empty-value+ :initarg :finger :accessor finger)
-   (fstatus :type symbol :initform +empty-value+ :initarg :fstatus :accessor fstatus))
+   (finger :type symbol :initform +empty+ :initarg :finger :accessor finger)
+   (fstatus :type symbol :initform +empty+ :initarg :fstatus :accessor fstatus))
   (:default-initargs
    :visual-features '(black-group finger fstatus)))
 
-(defun clear-fingers ()
-  (let ((instance (device-instance "piano-kbd")))
-    (dolist (key (surface-collection instance))
-      (setf (finger key) +empty-value+
-            (fstatus key) +empty-value+)
-      (modify-visicon key))))
+;;;
+(print "types and visual-features" *standard-output*)
+;;;
+(let ((kbd (make-instance 'piano-kbd :xy '(0 0)))
+      (c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2)))
+  (setf (surface-collection kbd) (list c))
 
-(defun find-key-from-xy (xy)
-  (let ((instance (device-instance "piano-kbd")))
-    (find xy (surface-collection instance) :key #'xy :test #'equalp)))
+  ;; types
+  (assert (eq 'piano-kbd (visobj-type kbd)))
+  (assert (eq 'piano-key (visobj-type c)))
+  (assert (eq 'piano-kbd-feature (visloc-type kbd)))
+  (assert (eq 'piano-key-feature (visloc-type c)))
 
-(defun place-right-hand (xy)
-  (clear-fingers)
-  (let ((anchor (find-key-from-xy xy)))
-    (setf (finger anchor) 'r1)
-    (modify-visicon anchor))
-  (let ((x (x xy)) (y (y xy)))
-    (dolist (finger-name '(r2 r3 r4 r5))
-      (let ((key (find-key-from-xy (list (incf x) y))))
-        (setf (finger key) finger-name)
-        (modify-visicon key)))))
-    
-(defparameter *piano-kbd* 
-  (let ((kbd (make-instance 'piano-kbd :xy '(0 0)))
-        (c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2 :finger 'r1))
-        (d (make-instance 'piano-key :xy '(1 0) :color 'white :black-group 'b2 :finger 'r2))
-        (e (make-instance 'piano-key :xy '(2 0) :color 'white :black-group 'b2 :finger 'r3))
-        (f (make-instance 'piano-key :xy '(3 0) :color 'white :black-group 'b3 :finger 'r4))
-        (g (make-instance 'piano-key :xy '(4 0) :color 'white :black-group 'b3 :finger 'r5))
-        (a (make-instance 'piano-key :xy '(5 0) :color 'white :black-group 'b3))
-        (b (make-instance 'piano-key :xy '(6 0) :color 'white :black-group 'b3)))
-    (setf (surface-collection kbd) (list c d e f g a b))
-    kbd))
-
-(progn 
-  (clear-all)
-  (define-model test)
-
-  (setf (device-instance "piano-kbd") *piano-kbd*)
+  ;; visual features
+  (assert (equal '(black-group b2) 
+                 (slot->feature c 'black-group)))
+  (assert (equal (object->features c +actr-features+)
+                 '(SCREEN-X 0 SCREEN-Y 0 VALUE EMPTY COLOR WHITE HEIGHT 1 WIDTH 1)))
+  (assert (equal (object->features c (visual-features c))
+                 '(BLACK-GROUP B2 FINGER EMPTY FSTATUS EMPTY)))
   
-  (with-model test  
-    (install-device '("vision" "piano-kbd"))
-
-    (add-to-visicon 
-     (device-instance "piano-kbd"))
-
-    (run-n-events 5)
-    (print-visicon))
-
-  (delete-model test)
-  (setf (device-instance "piano-kbd") nil)
+  (assert (equal (visual-object-features c)
+                 '(SCREEN-X 0 SCREEN-Y 0 VALUE EMPTY COLOR WHITE HEIGHT 1 WIDTH 1 BLACK-GROUP B2 FINGER EMPTY FSTATUS EMPTY)))
+  (assert (equal (visual-object-features c :isa t)
+                 '(ISA (PIANO-KEY-FEATURE PIANO-KEY) SCREEN-X 0 SCREEN-Y 0 VALUE EMPTY COLOR WHITE HEIGHT 1 WIDTH 1 BLACK-GROUP B2 FINGER EMPTY FSTATUS EMPTY)))
   )
 
-
-(progn 
+;;;
+(print "chunk-type and chunk definitions" *standard-output*)
+;;;
+(let ((c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2)))
   (clear-all)
+  (define-model test)
+  (with-model test
+    (assert (equal (define-chunk-types c)
+                   '(PIANO-KEY PIANO-KEY-FEATURE)))
+    (assert (null (define-chunk-types c))))
+  )
+
+;;;
+(print "add to visicon" *standard-output*)
+(terpri)
+;;;
+(let ((c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2)))
+  (clear-all)
+  (define-model test)
+  (with-model test    
+    (define-chunk-types c)
+    (define-chunks b2)
+    
+    (add-to-visicon c)
+
+    (run-n-events 5)
+    (print-visicon)
+    ))
+
+;;;
+(print "modify visicon" *standard-output*)
+(terpri)
+;;;
+(let ((c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2)))
+  (clear-all)
+  (define-model test)
+  (with-model test
+    (define-chunk-types c)
+    (define-chunks b2)
+    (define-chunks r1)
+    
+    (add-to-visicon c)
+
+    (run-n-events 5)
+    (print-visicon)
+
+    (setf (finger c) 'r1)
+    (modify-visicon c)
+
+    (run-n-events 5)
+    (print-visicon)                   
+    ))
+
+;;;
+(print "delete from visicon" *standard-output*)
+(terpri)
+;;;
+(let ((c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2)))
+  (clear-all)
+  (define-model test)
+  (with-model test
+    (define-chunk-types c)
+    (define-chunks b2)
+    
+    (add-to-visicon c)
+
+    (run-n-events 5)
+    (print-visicon)
+
+    (delete-from-visicon c)
+
+    (run-n-events 5)
+    (print-visicon)                   
+    ))
+
+
+;;;
+(print "visual search on visicon" *standard-output*)
+(terpri)
+;;;
+(let ((kbd (make-instance 'piano-kbd :xy '(0 0)))
+      (c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2 :finger 'r1))
+      (d (make-instance 'piano-key :xy '(1 0) :color 'white :black-group 'b2 :finger 'r2))
+      (e (make-instance 'piano-key :xy '(2 0) :color 'white :black-group 'b2 :finger 'r3))
+      (f (make-instance 'piano-key :xy '(3 0) :color 'white :black-group 'b3 :finger 'r4))
+      (g (make-instance 'piano-key :xy '(4 0) :color 'white :black-group 'b3 :finger 'r5))
+      (a (make-instance 'piano-key :xy '(5 0) :color 'white :black-group 'b3))
+      (b (make-instance 'piano-key :xy '(6 0) :color 'white :black-group 'b3)))
+  (setf (surface-collection kbd) (list c d e f g a b))
+
+  (clear-all)
+  (setf (device-instance "kbd") kbd)
 
   (define-model test
-    (p find-third-from-r1
+    (define-chunks b2 b3 r1 r2 r3 r4 r5)
+    (dolist (visobj (append (list (device-instance "kbd")) 
+                            (surface-collection (device-instance "kbd"))))
+      (define-chunk-types visobj))
+
+    (add-to-visicon (device-instance "kbd"))
+
+    (p find-rh-f3
        =visual-search>
        finger r3
        screen-x =x
        ==>
-       !output! (third is on screen-x =x)
+       !output! (r3 is on screen-x =x)
        !stop!
-       )
-    )
-
-  (setf (device-instance "piano-kbd") *piano-kbd*)
-  
-  (with-model test  
-    (install-device '("vision" "piano-kbd"))
-
-    (add-to-visicon 
-     (device-instance "piano-kbd"))
-
+       ))
+   
+  (with-model test
+   
     (run-n-events 5)
     (print-visicon)
-    (run 3)
 
-    (place-right-hand '(2 0))
-    (run-n-events 5)
-    (print-visicon)
-    (run 3)
-    )
+    (run 3))
 
-  
+  (setf (device-instance "kbd") nil))
 
-  (delete-model test)
-  ;(setf (device-instance "piano-kbd") nil)
-  )
-
-
-
+(delete-model test)
 (unintern 'piano-kbd)
 (unintern 'piano-key)
-(unintern '*piano-kbd*)
-
 
 
 ;;; eof

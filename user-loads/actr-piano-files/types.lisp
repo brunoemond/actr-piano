@@ -47,13 +47,14 @@
   '(satisfies isa-empty-or-symbol))
 
 ;;;
-;;; coordinate
+;;; xy-coordinate
 ;;;
-(defun isa-coordinate (object)
-  (and (typep object '(set-of number))
+(defun isa-xy-coordinate (object)
+  (and (or (typep object '(set-of number))
+           (typep object 'simple-vector))
        (eq 2 (length object))))
 
-(deftype coordinate ()
-  '(satisfies isa-coordinate))
+(deftype xy-coordinate ()
+  '(satisfies isa-xy-coordinate))
 
 ;;; eof

@@ -10,15 +10,28 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
 
 ;;; surface 
 (defclass surface ()
-  ((xy :type coordinate :initform '(0 0) :initarg :xy :reader xy)
-   (wh :type coordinate :initform '(1 1) :initarg :wh :reader wh)
+  ((xy :type xy-coordinate :initform '(0 0) :initarg :xy :reader xy)
+   (wh :type xy-coordinate :initform '(1 1) :initarg :wh :reader wh)
    (on-surface :type '(null-or-type surface) :initform nil :initarg :on-surface :reader on-surface)
    (surface-collection :type '(set-of surface) :initform nil :initarg :surface-collection :reader surface-collection)))
 
+(defmethod x ((instance list)) (first instance))
+(defmethod x ((instance simple-vector)) (aref instance 0))
+(defmethod x ((instance surface)) (x (xy instance)))
+
+(defmethod y ((instance list)) (second instance))
+(defmethod y ((instance simple-vector)) (aref instance 1))
+(defmethod y ((instance surface)) (y (xy instance)))
+
+
+(defun w (surface) (first (wh surface)))
+(defun h (surface) (second (wh surface)))
+
 (defmethod coordinate= (coor1 coor2)
-  (and (typep coor1 'coordinate)
-       (typep coor2 'coordinate)
-       (equal coor1 coor2)))
+  (and (typep coor1 'xy-coordinate)
+       (typep coor2 'xy-coordinate)
+       (and (eq (x coor1) (x coor2))
+            (eq (y coor1) (y coor2)))))
 
 (defmethod coordinate= ((s1 surface) (s2 surface))
   (coordinate= (xy s1) (xy s2)))
@@ -32,24 +45,6 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
   (dolist (collection-element collection-elements (surface-collection instance))
     (setf (surface-collection instance) collection-element)))
  
-(defmethod x ((instance list))
-  (first instance))
-
-(defmethod y ((instance list))
-  (second instance))
-
-(defmethod x ((instance surface))
-  (first (xy instance)))
-
-(defmethod y ((instance surface))
-  (second (xy instance)))
-
-(defun w (surface)
-  (first (wh surface)))
-
-(defun h (surface)
-  (second (wh surface)))
-
 (defmethod adjust-x ((instance null)) 0)
 (defmethod adjust-y ((instance null)) 0)
 
@@ -86,42 +81,37 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
    (value :type empty-or-symbol :initform +empty+ :initarg :value :reader value)
    (feature-id :type symbol :initform nil :reader feature-id)
    (visual-location :type symbol :initform nil :reader visual-location)
-   (visual-features :type '(set-of symbol) :initform nil :initarg :visual-features)))
+   (visual-features :type '(set-of symbol) :initform nil :initarg :visual-features :reader visual-features)))
 
 (defmethod screen-x ((instance visicon-object)) (adjust-x instance))
 (defmethod screen-y ((instance visicon-object)) (adjust-y instance))
 (defmethod width ((instance visicon-object)) (w instance))
 (defmethod height ((instance visicon-object)) (h instance))
-(defmethod kind ((instance visicon-object)) "Set using actr computed value." (declare (ignore instance)) nil)
+(defmethod kind ((instance visicon-object)) "Set using actr computed value."  (declare (ignore instance)) nil) ; "Set using actr computed value."  (declare (ignore instance)) nil)
 (defmethod size ((instance visicon-object)) "Set using actr computed value." (declare (ignore instance)) nil)
 (defmethod status ((instance visicon-object)) "Set using actr computed value." (declare (ignore instance)) nil)
 (defmethod screen-pos ((instance visicon-object)) "Set using actr computed value." (declare (ignore instance)) nil)
 
-(defun set-visicon-ids (visicon-object feat-id)
-  (with-slots (feature-id visual-location) visicon-object
-    (setf feature-id feat-id
-          visual-location (chunk-visual-loc feat-id))))
+(defun visloc-type (visicon-object)
+  (intern (format nil "~S-FEATURE" (type-of visicon-object))))
 
-(defparameter *visual-location-features*
-  '(screen-x screen-y distance kind size))
+(defun visobj-type (visicon-object)
+  (type-of visicon-object))
 
-(defparameter *shared-features*
-  '(value color height width))
-
-(defparameter *visual-object-features*
-  '(screen-pos status))
-
-(defparameter *actr-core-features*
-  (append *visual-location-features*
-          *shared-features*
-          *visual-object-features*))
+(defconstant +actr-features+
+  `(; visual-location
+    screen-x screen-y distance kind size
+    ; visual-location & visual-object
+    value color height width
+    ; visual-object
+    screen-pos status))
 
 (defun slot->feature (visicon-object slot-name)
   (if (fboundp slot-name)
       (let ((slot-value (apply slot-name (list visicon-object))))
         (cond (slot-value
                (list slot-name slot-value))
-              ((not (member slot-name *actr-core-features*))
+              ((not (member slot-name +actr-features+))
                (list slot-name +empty+))))   
     (error "There is no reader method ~S for object ~S." slot-name visicon-object)))
 
@@ -131,17 +121,18 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
       (setf features-set (append features-set 
                                  (slot->feature visicon-object slot-name))))))
 
-(defun visloc-type (visicon-object)
-  (intern (format nil "~S-FEATURE" (type-of visicon-object))))
-
-(defun visobj-type (visicon-object)
-  (type-of visicon-object))
+(defun visual-object-features (visicon-object &key isa)
+  (with-slots (visual-features) visicon-object
+    (append (when isa
+              (list 'isa (list (visloc-type visicon-object) (visobj-type visicon-object))))
+            (object->features visicon-object +actr-features+)
+            (object->features visicon-object visual-features))))
 
 (defun chunk-types-p (visicon-object)
   (and (chunk-type-p-fct (visloc-type visicon-object))
        (chunk-type-p-fct (visobj-type visicon-object))))
 
-(defun def-chunk-types (visicon-object)
+(defun define-chunk-types (visicon-object)
   (unless (chunk-types-p visicon-object)
     (let (chunks-defs)
       (dolist (chunk-type-spec `(((,(visloc-type visicon-object) (:include visual-location)))
@@ -150,19 +141,16 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
         (let ((features (copy-list (slot-value visicon-object 'visual-features))))
           (push (chunk-type-fct (append chunk-type-spec features)) chunks-defs))))))
 
-(defun visual-object-features (visicon-object &key isa)
-  (with-slots (visual-features) visicon-object
-    (append (when isa
-              (list 'isa (list (visloc-type visicon-object) (visobj-type visicon-object))))
-            (object->features visicon-object *visual-location-features*)
-            (object->features visicon-object *shared-features*)
-            (object->features visicon-object *visual-object-features*)
-            (object->features visicon-object visual-features))))
-
 ; to do: parse features and add chunks for slot values to avoid message:
 ; Warning: Creating chunk ABC with no slots
+
+(defun set-visicon-ids (visicon-object feat-id)
+  (with-slots (feature-id visual-location) visicon-object
+    (setf feature-id feat-id
+          visual-location (chunk-visual-loc feat-id))))
+
 (defmethod add-to-visicon ((object visicon-object))
-  (def-chunk-types object)
+  (define-chunk-types object)
   (unless (chunk-p-fct (visobj-type object))
     (define-chunks-fct (list (visobj-type object))))
   (dolist (colection-element (surface-collection object))

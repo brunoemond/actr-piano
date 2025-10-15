@@ -6,21 +6,6 @@
 ;;;
 ;;;
 
-
-;;;
-;;; utilities
-;;;
-(defmethod ->symbol ((object string)) (intern (string-upcase object)))
-(defmethod ->symbol ((object symbol)) object)
-
-(defmethod ->string ((object string)) object)
-(defmethod ->string ((object symbol)) (write-to-string object :case :downcase))
-
-(defun remove-from-plist (plist key)
-  (loop for (k v) on plist by #'cddr
-        unless (eq k key)
-        append (list k v)))
-
 ;;;
 ;;; device-list
 ;;;
@@ -128,7 +113,7 @@
                      :notification "apply-device-command")))
         (setf (gethash device-name (device-table di)) device)))))
 
-;; apply-device-command is called by notify-device that checks if the devide is installed for an interface
+;; apply-device-command is called by notify-device which checks if the devide is installed for an interface
 ;; (notify-device device-list feature)
 
 (defmethod apply-device-command ((instance standard-object) (features list))

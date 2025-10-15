@@ -5,6 +5,8 @@
 ;;; 2025-08-15
 ;;;
 
+(print ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; typep-slots" *standard-output*)
+
 (defclass test-type1 (typep-slots) ((a) (b :initform 'x :type symbol)))
 
 (let ((instance (make-instance 'test-type1)))
@@ -24,7 +26,6 @@
                                     (c :initarg :c :initform 'x :type symbol)))
 #+lispwork
 (assert (null (ignore-errors (make-instance 'test-type2 :c 23))))
-
 
 (unintern 'test-type1)
 (unintern 'test-type2)
