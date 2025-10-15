@@ -8,6 +8,7 @@
       (file-names
        '(
          "typep-slots-tests.lisp"
+         "types-tests.lisp"
          "device-interface-tests.lisp"
          "visicon-object-tests.lisp"
 
