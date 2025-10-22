@@ -21,6 +21,15 @@
     `(satisfies ,predicate)))
 
 ;;;
+;;; member-of
+;;;
+(deftype member-of (set)
+  (let ((predicate (gensym "PREDICATE")))
+    (setf (symbol-function predicate)
+          (lambda (element) (when (member element set) t)))
+    `(satisfies ,predicate)))
+
+;;;
 ;;; null-or-type
 ;;;
 (defun isa-null-or-type (object type)
@@ -56,5 +65,38 @@
 
 (deftype xy-coordinate ()
   '(satisfies isa-xy-coordinate))
+
+;;;
+;;; device-list
+;;;
+(defun isa-device-list (list)
+  (and (member (first list) (defined-interfaces) :test #'string=)
+       (member (second list) (defined-devices) :test #'string=)
+       (or (null (third list))
+           (stringp (third list)))))
+
+(deftype device-list ()
+  '(satisfies isa-device-list))
+
+;;;
+;;; finger-offset-spec
+;;;
+(defun isa-finger-offset (object finger-names)
+  (and (listp object)
+       (eq (length object) 3)
+       (member (first object) finger-names)
+       (numberp (second object))
+       (numberp (third object))))
+
+(deftype finger-offset (&optional (finger-names '(thumb index middle ring pinkie)))
+  (let ((predicate (gensym "PREDICATE")))
+    (setf (symbol-function predicate)
+          (lambda (object) (isa-finger-offset object finger-names)))
+    `(satisfies ,predicate)))
+
+  
+  
+
+
 
 ;;; eof

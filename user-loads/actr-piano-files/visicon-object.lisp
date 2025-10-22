@@ -9,11 +9,11 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
 |#
 
 ;;; surface 
-(defclass surface ()
+(defclass surface (typep-slots)
   ((xy :type xy-coordinate :initform '(0 0) :initarg :xy :reader xy)
    (wh :type xy-coordinate :initform '(1 1) :initarg :wh :reader wh)
-   (on-surface :type '(null-or-type surface) :initform nil :initarg :on-surface :reader on-surface)
-   (surface-collection :type '(set-of surface) :initform nil :initarg :surface-collection :reader surface-collection)))
+   (on-surface :type (null-or-type surface) :initform nil :initarg :on-surface :reader on-surface)
+   (surface-collection :type (set-of surface) :initform nil :initarg :surface-collection :reader surface-collection)))
 
 (defmethod x ((instance list)) (first instance))
 (defmethod x ((instance simple-vector)) (aref instance 0))
@@ -76,12 +76,12 @@ A visicon-object is a surface that can be perceived by actr as a set of visicon-
 
 ;;; visicon-object
 (defclass visicon-object (surface)
-  ((distance :type '(null-or-type number) :initform nil :initarg :distance :reader distance)
+  ((distance :type (null-or-type number) :initform nil :initarg :distance :reader distance)
    (color :type empty-or-symbol :initform +empty+ :initarg :color :reader color)
    (value :type empty-or-symbol :initform +empty+ :initarg :value :reader value)
    (feature-id :type symbol :initform nil :reader feature-id)
    (visual-location :type symbol :initform nil :reader visual-location)
-   (visual-features :type '(set-of symbol) :initform nil :initarg :visual-features :reader visual-features)))
+   (visual-features :type (set-of symbol) :initform nil :initarg :visual-features :reader visual-features)))
 
 (defmethod screen-x ((instance visicon-object)) (adjust-x instance))
 (defmethod screen-y ((instance visicon-object)) (adjust-y instance))

@@ -14,6 +14,12 @@
 (assert (not (typep '(1 x 3) '(set-of number))))
 
 ;;;
+(print "member-of" *standard-output*)
+;;;
+(assert (typep 1 '(member-of (1 2 3))))
+(assert (not (typep 4 '(member-of (1 2 3)))))
+
+;;;
 (print "null-or-type" *standard-output*)
 ;;;
 (assert (typep 1 '(null-or-type number)))
@@ -33,6 +39,21 @@
 (assert (typep '(1 2) 'xy-coordinate))
 (assert (not (typep '(1 2 3) 'xy-coordinate)))
 (assert (not (typep '(1 x) 'xy-coordinate)))
+
+;;;
+(print "device-list" *standard-output*)
+;;;
+(assert (typep '("vision" "exp-window") 'device-list))
+(assert (typep '("motor" "cursor" "mouse") 'device-list))
+(assert (not (typep '("abc" "cursor") 'device-list)))
+
+;;;
+(print "finger-offset" *standard-output*)
+;;;
+(assert (typep '(index 1 2) 'finger-offset))
+(assert (not (typep '(something 1 2) 'finger-offset)))
+
+(assert (typep '((thumb 1 2) (index 3 2)) '(set-of finger-offset)))
 
 
 ;;; eof
