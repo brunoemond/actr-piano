@@ -12,7 +12,8 @@
          "device-interface-tests.lisp"
          "visicon-object-tests.lisp"
          "hands-tests.lisp"
-
+         ;"midi-utilities-tests.lisp"
+         ;"piano-keyboard-tests.lisp"
          )))
   (dolist (file-name file-names file-names)
     (load (merge-pathnames file-name dir))))

@@ -24,7 +24,7 @@
 
 (defclass test-type2 (typep-slots) ((a :initarg :a) (b :initarg :b :type symbol) 
                                     (c :initarg :c :initform 'x :type symbol)))
-#+lispwork
+#+lispworks
 (assert (null (ignore-errors (make-instance 'test-type2 :c 23))))
 
 (unintern 'test-type1)

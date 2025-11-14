@@ -4,6 +4,9 @@
 ;;;
 ;;; 2025-08-15
 ;;;
+;;; Class to implement type verification on class slots for LispWorks. 
+;;; Compatible with SBCL.
+;;;
 (defclass typep-slots () ())
 
 (defmethod typep-slot-value ((object typep-slots) (slot-name symbol))

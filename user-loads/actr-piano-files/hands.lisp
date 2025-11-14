@@ -2,7 +2,7 @@
 ;;;
 ;;; hands.lisp
 ;;;
-;;; 2025-10-20
+;;; 2025-11-03
 ;;;
 
 ;;;
@@ -38,257 +38,178 @@
       (notify-interface "motor" `(set-hand-device ,hand-name ,dev-list))
     (print-warning "Either ~S is not a hand name ~S, or ~S is not a device list."
                    hand-name +hand-names+ dev-list)))
-  
+
+;; hand-pos current and next
+(defun hand-pos (hand-name &key current)
+  (let ((next-loc (next-loc (the-hand hand-name))))
+    (if current
+        (loc (the-hand hand-name))
+      next-loc)))
+
+(defmethod (setf hand-pos) (hand-pos hand-name &key current)
+  (set-hand-position (motor-module) hand-name hand-pos :current current))
+
+(defun initialize-next-hand-pos (hand-name)
+  (setf (hand-pos hand-name :current nil)
+        (copy-hand-pos (hand-pos hand-name :current t))))
+
+(defun clear-next-hand-pos (hand-name)
+  (setf (hand-pos hand-name :current nil) nil))
+
+                            
 ;; hand-xy
-(defun hand-xy (hand-name)
-  "Returns the xy coordinate of a hand."
+(defun hand-xy (hand-name &key current)
+  "Returns the current or next xy coordinate of a hand."
   (if (typep hand-name `(member-of ,+hand-names+))
-      (notify-interface "motor" `(get-hand-position ,hand-name))
+      (hand-pos-loc (hand-pos hand-name :current current))     
     (print-warning "~S is not a hand name ~S." hand-name +hand-names+)))
 
-(defmethod (setf hand-xy) ((xy list) (hand-name symbol))
-  "Sets the xy coordinate of a hand."
-  (if (and (typep xy 'xy-coordinate)
-           (typep hand-name `(member-of ,+hand-names+)))
-      (notify-interface "motor" `(set-hand-position ,hand-name ,(first xy) ,(second xy)))
-    (print-warning "Either ~S is not a hand name ~S, or ~S is not a xy-coordinate."
-                   hand-name +hand-names+ xy)))
+(defmethod (setf hand-xy) (xy hand-name &key current)
+  (setf (hand-pos-loc (hand-pos hand-name :current current)) xy))
 
-(defmethod (setf hand-xy) ((xy vector) (hand-name symbol))
-  (setf (hand-xy hand-name) (->list xy)))
+;; finger-offsets
+(defun finger-offsets (hand-name &key current)
+  (hand-pos-fingers (hand-pos hand-name :current current)))
 
-(add-act-r-command "set-hand-xy" (lambda (hand xy) (setf (hand-xy hand) xy)))
+(defmethod (setf finger-offsets) (offsets-list hand-name &key current)
+  (setf (hand-pos-fingers (hand-pos hand-name :current current))
+        offsets-list))
 
 ;; finger-offset
-(defmethod (setf finger-offsets) ((finger-xys list) (hand-name symbol))
-  "Sets the finger offsets for a hand. Ea"
-  (if (typep finger-xys '(set-of finger-offset))
-      (notify-interface "motor" `(set-finger-offset ,hand-name ,@finger-xys))
-    (print-warning "~S is not a set of finger offset (finger x y)." finger-xys)))
+(defun finger->vector (finger list)
+  (second (assoc finger list)))
 
-(defparameter *default-rh-finger-offsets*
-  '((thumb 0 0) (index 1 1) (middle 2 0) (ring 3 0) (pinkie 4 0)))
-(defparameter *default-lh-finger-offsets*
-  '((thumb 0 0) (index -1 0) (middle -2 0) (ring -3 0) (pinkie -4 0)))
+(defun finger-offset (hand-name finger &key current)
+  (finger->vector finger (finger-offsets hand-name :current current)))
 
-(defun set-default-finger-offsets (thumbs-xy)
-  (setf (hand-xy 'right) thumbs-xy
-        (hand-xy 'left) thumbs-xy
-        (finger-offsets 'right) *default-rh-finger-offsets*
-        (finger-offsets 'left) *default-lh-finger-offsets*)
-  (values (hand-position 'right) 
-          (hand-position 'left)))
+(defmethod (setf finger-offset) (xy hand-name finger &key current)
+  (setf (cdr (assoc finger (finger-offsets hand-name :current current)))
+        (list xy)))
 
 ;; finger-xy
-(defun finger-xy (hand-name finger)
+(defun finger-xy (hand-name finger &key current)
   (if (and (typep finger `(member-of ,+finger-names+))
            (typep hand-name `(member-of ,+hand-names+)))
-      (notify-interface "motor" `(get-finger-position ,hand-name ,finger))
+      (vector+ (hand-xy hand-name :current current)
+               (finger-offset hand-name finger :current current))
     (print-warning "Either ~S is not a hand name ~S, or ~S is not a finger name ~S."
                    hand-name +hand-names+ finger +finger-names+)))
 
-(defmethod (setf finger-xy) ((xy list) hand-name finger)
-  (let ((hand-xy (hand-xy hand-name)))
-    (setf (finger-offsets hand-name)
-          (list (list finger 
-                      (- (first xy) (first hand-xy))
-                      (- (second xy) (second hand-xy)))))
-    (finger-xy hand-name finger)))
+(defmethod (setf finger-xy) (xy hand-name finger &key current)
+  (setf (finger-offset hand-name finger :current current) 
+        (vector- xy (hand-xy hand-name :current current))))
 
-(add-act-r-command "set-finger-xy" (lambda (hand finger xy) (setf (finger-xy hand finger) xy)))
 
-;;;;; piano-hand-movement
-(defclass piano-hand-movement-style (dual-hand-movement-style)
-  ())
+;; change-anchor-finger
+(defun copy-offsets (hand-name &key current)
+  (copy-list (finger-offsets hand-name :current current)))
 
-;;;;; move-piano-finger
-(defstyle move-piano-finger piano-hand-movement-style hand finger to-xy)
+(defun offset-vector (start end)
+  (vector- end start))
 
-(defmethod prepare-features ((m motor-module) (action move-piano-finger))
-  (multiple-value-bind (r theta)
-      (r-theta (finger-xy (hand action) (finger action))
-               (to-xy action))
-    (setf (updated-pos action)
-          (move-finger (the-hand (hand action)) (finger action) r theta :current nil))))
+(defun offsets->xys (hand-xy offsets)
+  (mapcar (lambda (offset)
+            (list (first offset) 
+                  (vector+ hand-xy (second offset))))
+        offsets))
 
-(defmethod feat-differences ((action1 move-piano-finger) (action2 move-piano-finger))
+(defun change-anchor-finger (hand-xy offsets finger)
+  (let* ((finger-xys (offsets->xys hand-xy offsets))
+         (fxy (finger->vector finger finger-xys)))
+    (mapcar (lambda (finger-xy)
+              (list (first finger-xy)
+                    (vector- (second finger-xy) fxy)))
+            finger-xys)))
+
+;; place hands on the keyboard
+(defun default-finger-offsets (hand-name &optional (finger-spacing 1))
+  "Assumes that the default is that all fingers are evenly spaced and aligned on the x-axis (constant y value) with the thumb offset being (0 0)."
+  (let ((direction (ecase hand-name (right 1) (left -1))))
+    `((thumb (0 0))
+      (index (,(* direction finger-spacing) 0))
+      (middle (,(* 2 direction finger-spacing) 0))
+      (ring (,(* 3 direction finger-spacing) 0))
+      (pinkie (,(* 4 direction finger-spacing) 0)))))
+
+(defun place-hand-on-keyboard (hand-name anchor-finger hand-xy &optional (finger-spacing 1))
+  (if (and (typep hand-name `(member-of ,+hand-names+))
+           (typep anchor-finger `(member-of ,+finger-names+)))
+      (progn
+        (setf (hand-xy hand-name :current t) 
+              (->vector hand-xy)
+              (finger-offsets hand-name :current t) 
+              (change-anchor-finger hand-xy
+                                    (default-finger-offsets hand-name finger-spacing)
+                                    anchor-finger))
+        (hand-pos hand-name :current t))
+    (print-warning "Either ~S is not a hand name ~S, or ~S is not a finger-name ~S."
+                   hand-name +hand-names+ anchor-finger +finger-names+)))
+
+(defun place-hands-on-keyboard (hand-xy &optional (finger-spacing 1))
+  (values (place-hand-on-keyboard 'right 'thumb hand-xy finger-spacing)
+          (place-hand-on-keyboard 'left 'thumb hand-xy finger-spacing)))
+
+
+;;;;;;;;;;;;;;;;;;
+;;;
+;;; Movement styles to be used in productions. 
+;;;
+;;; hand-movement (hand &optional to-xy thumb index middle ring pinkie.
+;;;   Only hand is required, however without a hand location or a finger offset the
+;;;   request would have no effect. 
+;;;
+
+(defconstant +hand-movement-features+ '(hand to-xy thumb index middle ring pinkie))
+
+(eval `(defstyle hand-movement dual-hand-movement-style ,@+hand-movement-features+))
+
+;(remove-manual-request hand-movement)
+
+(extend-manual-requests-fct 
+ `(hand-movement 
+   hand 
+   (to-xy ,+empty+) 
+   (thumb ,+empty+) 
+   (index ,+empty+) 
+   (middle ,+empty+) 
+   (ring ,+empty+) 
+   (pinkie ,+empty+)) 
+ 'handle-style-request) 
+
+(defmethod feat-differences ((style1 hand-movement) (style2 hand-movement))
   (let ((count 0))
-    (unless (equalp (to-xy action1) (to-xy action2))
-      (incf count))
-    count))
+    ;; adding one to difference count for every different values
+    (dolist (feature +hand-movement-features+ count)
+      (unless (equalp (slot-value style1 feature) (slot-value style2 feature))
+        (incf count)))))
 
-(defmethod compute-exec-time ((m motor-module) (action move-piano-finger))
+(defun change-if-new-value (hand finger new-value)
+  (when (and new-value (not (eq new-value +empty+)))
+    (setf (finger-offset hand finger) (->vector new-value))))
+
+(defmethod prepare-features ((m motor-module) (style hand-movement))
+  (let ((hand (hand style)))
+    (initialize-next-hand-pos hand)
+    (when (to-xy style) (setf (hand-xy hand) (->vector (to-xy style))))
+    (dolist (finger +finger-names+
+                    (setf (updated-pos style)
+                          (hand-pos hand :current nil)))
+      (change-if-new-value hand finger (funcall finger style)))))
+
+
+(defmethod compute-exec-time ((m motor-module) (action hand-movement))
   .2)
 
-(defmethod compute-finish-time ((m motor-module) (action move-piano-finger))
+(defmethod compute-finish-time ((m motor-module) (action hand-movement))
   (+ .1 (exec-time action)))
 
-(defmethod queue-output-events ((m motor-module) (action move-piano-finger))
+(defun set-current-hand-pos (hand)
+  "Set the current hand state to its next state (:current nil)."
+  (setf (hand-pos hand :current t) 
+        (hand-pos hand :current nil)))
+
+(defmethod queue-output-events ((m motor-module) (action hand-movement))
   (schedule-event-relative 
-   (exec-time action) "set-finger-xy"
-   :params (list (hand action) 
-                 (finger action)
-                 (to-xy action))))
-
-(extend-manual-requests (move-piano-finger hand to-xy) handle-style-request)
-
-
-
-;;;;; move-piano-hand
-(defstyle move-piano-hand piano-hand-movement-style hand to-xy thumb-xy)
-
-(defmethod prepare-features ((m motor-module) (action move-piano-hand))
-  (multiple-value-bind (r theta)
-      (r-theta (hand-xy (hand action))
-               (to-xy action))
-    (setf (updated-pos action)
-          (move-hand (the-hand (hand action)) r theta :current nil)))
-  (when (thumb-xy action)
-    (multiple-value-bind (r theta)
-      (r-theta (finger-xy (hand action) 'thumb)
-               (thumb-xy action))
-      (setf (updated-pos action)
-            (move-finger (the-hand (hand action)) 'thumb r theta :current nil)))))
-
-(defmethod feat-differences ((action1 move-piano-hand) (action2 move-piano-hand))
-  (let ((count 0))
-    (unless (equalp (to-xy action1) (to-xy action2))
-      (incf count))
-    (unless (equalp (thumb-xy action1) (thumb-xy action2))
-      (incf count))
-    count))
-
-(defmethod compute-exec-time ((m motor-module) (action move-piano-hand))
-  .2)
-
-(defmethod compute-finish-time ((m motor-module) (action move-piano-hand))
-  (+ .1 (exec-time action)))
-
-(defmethod queue-output-events ((m motor-module) (action move-piano-hand))
-  (schedule-event-relative 
-   (exec-time action) "set-hand-xy"
-   :params (list (hand action) (to-xy action)))
-  (when (thumb-xy action)
-    (schedule-event-relative 
-     (exec-time action) "set-finger-xy"
-     :params (list (hand action) 'thumb (thumb-xy action)))))
-
-(extend-manual-requests (move-piano-hand hand to-xy thumb-xy) handle-style-request)
-
-
-#|
-
-
-
-
-;;; hand-pos
-(defmethod hand-pos ((the-hand hand) &key (current t))
-  (hand-position the-hand :current current))
-
-(defmethod hand-pos ((hand-name symbol) &key (current t))
-  (hand-pos (the-hand hand-name) :current current))
-
-(defmethod (setf hand-pos) ((hand-pos hand-pos) (the-hand hand) &key (current t))
-  (set-hand-position (motor-module) the-hand hand-pos :current current))
-
-(defmethod (setf hand-pos) ((hand-pos hand-pos) (hand-name symbol) &key (current t))
-  (setf (hand-pos (the-hand hand-name) :current current) hand-pos))
-
-
-
-
-
-
-;;; finger-offsets
-
-(defmethod finger-offsets ((hand hand))
-  (hand-pos-fingers (hand-position hand)))
-
-(defmethod finger-offsets ((hand-name symbol))
-  (finger-offsets (the-hand hand-name)))
-
-(defmethod (setf finger-offsets) ((finger-offsets list) (hand hand))
-  (let (new-offsets)
-    (dolist (old-offset 
-             (finger-offsets hand)
-             (setf (hand-pos-fingers (hand-position hand)) new-offsets))
-      (let ((new-offset (assoc (car old-offset) finger-offsets)))
-        (setf new-offsets
-              (if new-offset 
-                  (append new-offsets (list new-offset))
-                (append new-offsets (list old-offset))))))))
-
-(defmethod (setf finger-offsets) ((finger-offsets list) (hand-name symbol))
-  (setf (finger-offsets (the-hand hand-name)) finger-offsets))
-           
-(defun set-default-finger-offsets ()
-  (setf (finger-offsets 'right) *default-rh-finger-offsets*
-        (finger-offsets 'left) *default-lh-finger-offsets*)
-  (values (hand-position 'right) (hand-position 'left)))
-
-(defmethod move-finger-to-pos ((hand hand) finger new-pos &key (current t))
-  (let ((old-pos (finger-loc hand finger)))
-    (multiple-value-bind (r theta)
-        (r-theta old-pos new-pos)
-      (move-finger hand finger r theta :current current))))
-
-(defmethod move-finger-to-pos ((hand-name symbol) finger new-pos &key (current t))
-  (move-finger-to-pos (the-hand hand-name) finger new-pos :current current))
-
-(defmethod move-hand-to-pos ((hand hand) new-pos &key (current t))
-  (let ((old-pos (hand-loc hand)))
-    (multiple-value-bind (r theta)
-        (r-theta old-pos new-pos)
-      (move-hand hand r theta :current current))))
-
-;; xy-to-polar (from to)
-
-(defmethod move-hand-to-pos ((hand-name symbol) new-pos &key (current t))
-  (move-hand-to-pos (the-hand hand-name)  new-pos :current current))
-
-|#
-#|
-(defmethod hand-position ((the-hand hand) &key (current t))
-  (bt:with-lock-held ((hand-lock the-hand))
-    (let ((location (if (or current (null (next-loc the-hand))) (loc the-hand) (next-loc the-hand))))
-      location)))
-
-(defmethod set-hand-position ((mtr-mod motor-module) hand pos &key (current t))
-  (let ((h (ecase hand
-             (right (right-hand mtr-mod))
-             (left (left-hand mtr-mod)))))
-    (bt:with-lock-held ((hand-lock h))
-      (if current
-          (setf (loc h) pos)
-        (setf (next-loc h) pos))))
-  nil)
-
-|#
-#|
-(set-hand-position ; hand x y 
-                   (if (and (numberp (second p)) (numberp (third p)))
-                       (case (first p)
-                         (left 
-                          (let ((hand (left-hand motor)))
-                            (bt:with-lock-held ((hand-lock hand))
-                              (setf (loc hand) (make-hand-pos :loc (vector (second p) (third p))
-                                                              :fingers (left-standard-offsets))))))
-                         (right 
-                          (let ((hand (right-hand motor)))
-                            (bt:with-lock-held ((hand-lock hand))
-                              (setf (loc hand) (make-hand-pos :loc (vector (second p) (third p))
-                                                              :fingers (right-standard-offsets))))))
-                         (t
-                          (print-warning "Invalid hand ~s provided when notifying motor interface for set-hand-position." (first p))))
-                     (print-warning "Invalid x and/or y position ~s and ~s provided when notifying motor interface for set-hand-position." 
-                                    (second p) (third p))))
-|#
-
-;(defclass finger-spacing ()
-;  ((hand :type `(member-of +hand-names+) :initarg :hand :initform 'right :reader hand)))
-   
-
-
-
+   (exec-time action) 'set-current-hand-pos :params (list (hand action))))
 
 ;;; eof

@@ -4,6 +4,8 @@
 ;;;
 ;;; 2025-10-15
 ;;;
+;;; Type definitions for class slots. 
+;;; Currently includes all types for the dependent code. 
 
 ;;;
 ;;; set-of
@@ -26,7 +28,10 @@
 (deftype member-of (set)
   (let ((predicate (gensym "PREDICATE")))
     (setf (symbol-function predicate)
-          (lambda (element) (when (member element set) t)))
+          (lambda (element)
+            (when (member element 
+                          (if (symbolp set) (eval set) set))
+              t)))
     `(satisfies ,predicate)))
 
 ;;;
@@ -83,20 +88,16 @@
 ;;;
 (defun isa-finger-offset (object finger-names)
   (and (listp object)
-       (eq (length object) 3)
+       (eq (length object) 2)
+       (eq (length (second object)) 2)
        (member (first object) finger-names)
-       (numberp (second object))
-       (numberp (third object))))
+       (numberp (elt (second object) 0))
+       (numberp (elt (second object) 1))))
 
 (deftype finger-offset (&optional (finger-names '(thumb index middle ring pinkie)))
   (let ((predicate (gensym "PREDICATE")))
     (setf (symbol-function predicate)
           (lambda (object) (isa-finger-offset object finger-names)))
     `(satisfies ,predicate)))
-
-  
-  
-
-
 
 ;;; eof

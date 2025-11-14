@@ -26,11 +26,12 @@
 ;;;
 (print "class definitions" *standard-output*)
 ;;;
-(defclass piano-kbd (visicon-object) 
+(defclass test-piano-kbd (visicon-object) 
   ((nb-keys :type number :initform 7 :initarg :nb-keys :reader nb-keys))
   (:default-initargs
    :visual-features '(nb-keys)))
-(defclass piano-key (visicon-object) 
+
+(defclass test-piano-key (visicon-object) 
   ((black-group :type symbol :initform nil :initarg :black-group :reader black-group)
    (finger :type symbol :initform +empty+ :initarg :finger :accessor finger)
    (fstatus :type symbol :initform +empty+ :initarg :fstatus :accessor fstatus))
@@ -40,15 +41,15 @@
 ;;;
 (print "types and visual-features" *standard-output*)
 ;;;
-(let ((kbd (make-instance 'piano-kbd :xy '(0 0)))
-      (c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2)))
+(let ((kbd (make-instance 'test-piano-kbd :xy '(0 0)))
+      (c (make-instance 'test-piano-key :xy '(0 0) :color 'white :black-group 'b2)))
   (setf (surface-collection kbd) (list c))
 
   ;; types
-  (assert (eq 'piano-kbd (visobj-type kbd)))
-  (assert (eq 'piano-key (visobj-type c)))
-  (assert (eq 'piano-kbd-feature (visloc-type kbd)))
-  (assert (eq 'piano-key-feature (visloc-type c)))
+  (assert (eq 'test-piano-kbd (visobj-type kbd)))
+  (assert (eq 'test-piano-key (visobj-type c)))
+  (assert (eq 'test-piano-kbd-feature (visloc-type kbd)))
+  (assert (eq 'test-piano-key-feature (visloc-type c)))
 
   ;; visual features
   (assert (equal '(black-group b2) 
@@ -61,18 +62,18 @@
   (assert (equal (visual-object-features c)
                  '(SCREEN-X 0 SCREEN-Y 0 VALUE EMPTY COLOR WHITE HEIGHT 1 WIDTH 1 BLACK-GROUP B2 FINGER EMPTY FSTATUS EMPTY)))
   (assert (equal (visual-object-features c :isa t)
-                 '(ISA (PIANO-KEY-FEATURE PIANO-KEY) SCREEN-X 0 SCREEN-Y 0 VALUE EMPTY COLOR WHITE HEIGHT 1 WIDTH 1 BLACK-GROUP B2 FINGER EMPTY FSTATUS EMPTY)))
+                 '(ISA (TEST-PIANO-KEY-FEATURE TEST-PIANO-KEY) SCREEN-X 0 SCREEN-Y 0 VALUE EMPTY COLOR WHITE HEIGHT 1 WIDTH 1 BLACK-GROUP B2 FINGER EMPTY FSTATUS EMPTY)))
   )
 
 ;;;
 (print "chunk-type and chunk definitions" *standard-output*)
 ;;;
-(let ((c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2)))
+(let ((c (make-instance 'test-piano-key :xy '(0 0) :color 'white :black-group 'b2)))
   (clear-all)
   (define-model test)
   (with-model test
     (assert (equal (define-chunk-types c)
-                   '(PIANO-KEY PIANO-KEY-FEATURE)))
+                   '(TEST-PIANO-KEY TEST-PIANO-KEY-FEATURE)))
     (assert (null (define-chunk-types c))))
   )
 
@@ -80,7 +81,7 @@
 (print "add to visicon" *standard-output*)
 (terpri)
 ;;;
-(let ((c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2)))
+(let ((c (make-instance 'test-piano-key :xy '(0 0) :color 'white :black-group 'b2)))
   (clear-all)
   (define-model test)
   (with-model test    
@@ -97,7 +98,7 @@
 (print "modify visicon" *standard-output*)
 (terpri)
 ;;;
-(let ((c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2)))
+(let ((c (make-instance 'test-piano-key :xy '(0 0) :color 'white :black-group 'b2)))
   (clear-all)
   (define-model test)
   (with-model test
@@ -121,7 +122,7 @@
 (print "delete from visicon" *standard-output*)
 (terpri)
 ;;;
-(let ((c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2)))
+(let ((c (make-instance 'test-piano-key :xy '(0 0) :color 'white :black-group 'b2)))
   (clear-all)
   (define-model test)
   (with-model test
@@ -144,14 +145,14 @@
 (print "visual search on visicon" *standard-output*)
 (terpri)
 ;;;
-(let ((kbd (make-instance 'piano-kbd :xy '(0 0)))
-      (c (make-instance 'piano-key :xy '(0 0) :color 'white :black-group 'b2 :finger 'r1))
-      (d (make-instance 'piano-key :xy '(1 0) :color 'white :black-group 'b2 :finger 'r2))
-      (e (make-instance 'piano-key :xy '(2 0) :color 'white :black-group 'b2 :finger 'r3))
-      (f (make-instance 'piano-key :xy '(3 0) :color 'white :black-group 'b3 :finger 'r4))
-      (g (make-instance 'piano-key :xy '(4 0) :color 'white :black-group 'b3 :finger 'r5))
-      (a (make-instance 'piano-key :xy '(5 0) :color 'white :black-group 'b3))
-      (b (make-instance 'piano-key :xy '(6 0) :color 'white :black-group 'b3)))
+(let ((kbd (make-instance 'test-piano-kbd :xy '(0 0)))
+      (c (make-instance 'test-piano-key :xy '(0 0) :color 'white :black-group 'b2 :finger 'r1))
+      (d (make-instance 'test-piano-key :xy '(1 0) :color 'white :black-group 'b2 :finger 'r2))
+      (e (make-instance 'test-piano-key :xy '(2 0) :color 'white :black-group 'b2 :finger 'r3))
+      (f (make-instance 'test-piano-key :xy '(3 0) :color 'white :black-group 'b3 :finger 'r4))
+      (g (make-instance 'test-piano-key :xy '(4 0) :color 'white :black-group 'b3 :finger 'r5))
+      (a (make-instance 'test-piano-key :xy '(5 0) :color 'white :black-group 'b3))
+      (b (make-instance 'test-piano-key :xy '(6 0) :color 'white :black-group 'b3)))
   (setf (surface-collection kbd) (list c d e f g a b))
 
   (clear-all)
@@ -184,8 +185,8 @@
   (setf (device-instance "kbd") nil))
 
 (delete-model test)
-(unintern 'piano-kbd)
-(unintern 'piano-key)
+(unintern 'test-piano-kbd)
+(unintern 'test-piano-key)
 
 
 ;;; eof

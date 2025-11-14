@@ -50,10 +50,11 @@
 ;;;
 (print "finger-offset" *standard-output*)
 ;;;
-(assert (typep '(index 1 2) 'finger-offset))
-(assert (not (typep '(something 1 2) 'finger-offset)))
+(assert (typep '(index (1 2)) 'finger-offset))
+(assert (typep `(index ,#(1 2)) 'finger-offset))
+(assert (not (typep '(something (1 2)) 'finger-offset)))
 
-(assert (typep '((thumb 1 2) (index 3 2)) '(set-of finger-offset)))
+(assert (typep '((thumb (1 2)) (index (3 2))) '(set-of finger-offset)))
 
 
 ;;; eof
