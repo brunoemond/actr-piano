@@ -12,6 +12,7 @@
          "device-interface-tests.lisp"
          "visicon-object-tests.lisp"
          "hands-tests.lisp"
+         "hands-styles-tests.lisp"
          ;"midi-utilities-tests.lisp"
          ;"piano-keyboard-tests.lisp"
          )))

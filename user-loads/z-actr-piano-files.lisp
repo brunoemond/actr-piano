@@ -14,6 +14,7 @@
          "actr-piano-files/device-interface.lisp"
          "actr-piano-files/visicon-object.lisp"
          "actr-piano-files/hands.lisp"
+         "actr-piano-files/hands-styles.lisp"
          ;"actr-piano-files/midi-utilities.lisp"
          ;œ"actr-piano-files/piano-keyboard.lisp"
          )))
