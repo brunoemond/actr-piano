@@ -145,9 +145,6 @@
     (print-warning "Either ~S is not a hand name ~S, or ~S is not a finger-name ~S."
                    hand-name +hand-names+ anchor-finger +finger-names+)))
 
-(defun place-hands-on-keyboard (hand-xy &optional (finger-spacing 1))
-  (values (place-hand-on-keyboard 'right 'thumb hand-xy finger-spacing)
-          (place-hand-on-keyboard 'left 'thumb hand-xy finger-spacing)))
 
 
 ;;; eof

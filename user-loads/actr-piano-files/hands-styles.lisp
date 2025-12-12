@@ -72,7 +72,6 @@
   "This is a generic method assuming only *piano-hand-features* in a style. The features could be added in a style specific method."
   (count-features style1 style2))
 
-
 ;;; piano-hand initiation parameters and methods.
 ;;;
 ;;; The compute-exec-time method is called to determine
@@ -90,6 +89,22 @@
   (declare (ignore m style))
   *default-compute-exec-time*)
 
+;;; The compute-finish-time method is called to determine how long
+;;; after the preparation of the style's action it will take until
+;;; the execution stage should complete and become free again.
+;;; It must return a number which is the total execution stage
+;;; time in seconds.  This is called after the exec-time is set.
+
+;;; After calling compute-finish-time the style will set the 
+;;; finish-time slot of the style to the result.
+
+(defparameter *default-compute-finish-time* 0.05
+  "Minimum finish time.")
+
+(defmethod compute-finish-time ((m motor-module) (style piano-hand-style))
+  (declare (ignore m))
+  (+ *default-compute-finish-time* (exec-time style)))
+
 ;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Movement styles to be used in productions. 
@@ -99,9 +114,10 @@
 ;;;   request would have no effect. 
 ;;;
 
-(defstyle position-hand-fingers piano-hand-style to-xy)
+(when (find-class 'position-hand-fingers nil)
+  (remove-manual-request position-hand-fingers))
 
-;(remove-manual-request hand-movement)
+(defstyle position-hand-fingers piano-hand-style hand to-xy thumb index middle ring pinkie)
 
 (extend-manual-requests-fct 
  `(position-hand-fingers 
@@ -120,7 +136,7 @@
   (when (and new-value (not (eq new-value +empty+)))
     (setf (finger-offset hand finger) (->vector new-value))))
 
-(defmethod prepare-features ((m motor-module) (style hand-movement))
+(defmethod prepare-features ((m motor-module) (style position-hand-fingers))
   (let ((hand (hand style)))
     (initialize-next-hand-pos hand)
     (when (to-xy style) (setf (hand-xy hand) (->vector (to-xy style))))
@@ -129,33 +145,25 @@
                           (hand-pos hand :current nil)))
       (change-if-new-value hand finger (funcall finger style)))))
 
-(defmethod feat-differences ((style1 hand-movement) (style2 hand-movement))
+(defmethod feat-differences ((style1 position-hand-fingers) (style2 position-hand-fingers))
   (let ((*piano-hand-features* (push 'to-xy *piano-hand-features*)))
     (count-features style1 style2)))
 
-
-(defmethod compute-finish-time ((m motor-module) (action hand-movement))
-  (+ .1 (exec-time action)))
 
 (defun set-current-hand-pos (hand)
   "Set the current hand state to its next state (:current nil)."
   (setf (hand-pos hand :current t) 
         (hand-pos hand :current nil)))
 
-(defmethod queue-output-events ((m motor-module) (action hand-movement))
+(defmethod queue-output-events ((m motor-module) (action position-hand-fingers))
   (schedule-event-relative 
    (exec-time action) 'set-current-hand-pos :params (list (hand action))))
 
 
 ;;;;;;;;;;;;;;;;;;
 ;;;
-;;; Movement styles to be used in productions. 
+;;; activate-keys 
 ;;;
-;;; activate-keys (hand &optional thumb index middle ring pinkie.
-;;;   Only hand is required, however without a hand location or a finger offset the
-;;;   request would have no effect. 
-;;;
-
 
 (defstyle activate-keys piano-hand-style thumb-force thumb-duration index-force index-duration 
           middle-forve middle-dutation ring-force ring-duration pinkie-force pinkie-duration)
