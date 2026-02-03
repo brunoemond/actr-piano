@@ -17,20 +17,22 @@
 
 (clear-all)
 
-(unless *m-loaded*
-  (progn
-   (load "/home/wolfgang/Projekte/BC-Model/music01.lisp")
-   (load "/home/wolfgang/Projekte/BC-Model/lisp-model-interface.lisp")
-   (load "/home/wolfgang/Projekte/BC-Model/music-vars-2.lisp")
-   (load "/home/wolfgang/Projekte/BC-Model/midi-connection.lisp")
-;  (load "c:/home/visicon/visicon-object.lisp")
-;  (load "c:/home/visicon/piano-keyboard.lisp")
+(defparameter *models-dir*
+  (make-pathname :directory (pathname-directory *load-truename*)))
+
+(unless (and (boundp '*m-loaded*) *m-loaded*)
+  (load (merge-pathnames "music01.lisp" *models-dir*))
+  (load (merge-pathnames "lisp-model-interface.lisp" *models-dir*))
+  (load (merge-pathnames "music-vars-2.lisp" *models-dir*))
+  ;(load (merge-pathnames "midi-connection.lisp" *models-dir*))
+  ;(load "c:/home/visicon/visicon-object.lisp")
+  ;(load "c:/home/visicon/piano-keyboard.lisp")
 
 
-   (set-exercise *ex01*)
+   ;(set-exercise *ex01*)
 
-   (defvar ofi1 t)
-   (defvar ofi2 t)))
+  (defvar ofi1 t)
+  (defvar ofi2 t))
 
 (setf *m-loaded* T)
 
