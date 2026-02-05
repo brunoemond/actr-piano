@@ -24,12 +24,13 @@
   (load (merge-pathnames "music01.lisp" *models-dir*))
   (load (merge-pathnames "lisp-model-interface.lisp" *models-dir*))
   (load (merge-pathnames "music-vars-2.lisp" *models-dir*))
+  (load (merge-pathnames "midi-connection-dummy.lisp" *models-dir*))
   ;(load (merge-pathnames "midi-connection.lisp" *models-dir*))
   ;(load "c:/home/visicon/visicon-object.lisp")
   ;(load "c:/home/visicon/piano-keyboard.lisp")
 
 
-   ;(set-exercise *ex01*)
+   (set-exercise *ex01*)
 
   (defvar ofi1 t)
   (defvar ofi2 t))

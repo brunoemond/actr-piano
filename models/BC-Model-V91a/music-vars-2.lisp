@@ -72,7 +72,7 @@
 
 (defvar *zk05* (make-exercise-type))
   (setf (exercise-type-title *zk05*) "Zackor No5")
-  (setf (exercise-type-tostri *zk05*) "g'4 e fis d e cis d d c a b g d' fis g2")
+  (setf (exercise-type-tostri *zk05*) "g4 e fis d e cis d d c a b g d' fis g2")
   (setf (exercise-type-figstri *zk05*) "r4 r <6> r r <6> r2 r4 <6> <6>  r r <6> r2")
   (setf (exercise-type-lasttone *zk05*) "c")
   (setf (exercise-type-lasttcount *zk05*) *reft*)
