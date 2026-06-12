@@ -9,7 +9,7 @@
 ;;; types
 (defun check-type% (value type)
   "A type checking utility which returns the tested value if it is of the correct type."
-  (assert (typep value type) (value) "Expected ~S, got ~S" type value)
+  (assert (typep value type) (value) "Expected ~S, got ~S." type value)
   value)
 
 

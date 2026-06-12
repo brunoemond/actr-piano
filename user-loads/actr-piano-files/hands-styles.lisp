@@ -168,4 +168,10 @@
 (defstyle activate-keys piano-hand-style thumb-force thumb-duration index-force index-duration 
           middle-forve middle-dutation ring-force ring-duration pinkie-force pinkie-duration)
 
+
+
+
+
+
+
 ;;; eof
