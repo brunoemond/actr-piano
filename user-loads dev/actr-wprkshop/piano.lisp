@@ -1152,7 +1152,7 @@ Specific style features to be handled with prepare-additional-features."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defstyle release-keys hand-to-piano-style hand)
 (extend-manual-requests 
- (hand-to-piano hand thumb index middle ring pinkie) 
+ (release-keys hand thumb index middle ring pinkie) 
  process-piano-hand-style-request)
 
 (defun midi-key-off (piano-key)
