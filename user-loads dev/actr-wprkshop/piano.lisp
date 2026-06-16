@@ -69,14 +69,26 @@ sort of relative references taking into account dependenci chains.
   "A symbol for an octave given a MIDI NUMBER. Used as a chunk name."
   (intern (format nil "O~S" (number->octave-number number))))
 
+(defun all-octaves ()
+  (let (octaves)
+    (do ((i *min-midi-number* (1+ i)))
+        ((> i *max-midi-number*) octaves)
+      (setf octaves 
+            (adjoin (number->octave-symbol i)
+                    octaves)))))
+
+(defun octave-chunks ()
+  (chunk-type octave left-of right-of)
+  (do* ((octaves (all-octaves) (cdr octaves))
+        (chunk `(,(nth 0 octaves) isa octave right-of ,(nth 1 octaves) left-of nil)
+               `(,(nth 0 octaves) isa octave right-of ,(nth 1 octaves) left-of ,previous-n))
+        (previous-n (nth 0 octaves) (nth 0 octaves))
+        (chunks (list chunk) (append chunks (list chunk))))
+       ((null (cdr octaves)) (define-chunks-fct chunks))))
+
 (deftype octave () 
   "A symbol for an octave between O0 and O8 for an 88 keys keyboard."
-  `(member ,@(let (octaves)
-               (do ((i *min-midi-number* (1+ i)))
-                   ((> i *max-midi-number*) octaves)
-                 (setf octaves 
-                       (adjoin (number->octave-symbol i)
-                               octaves))))))
+  `(member ,@(all-octaves)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -247,6 +259,15 @@ from *min-midi-number* to *max-midi-number*."
 (deftype note-name () 
   "A note name is one that is present in +notes-hashtable+."
   '(satisfies isa-note-name))
+
+(defun all-note-names ()
+  (let (names)
+    (maphash (lambda (name key)
+               (declare (ignore key))
+               (when (symbolp name)
+                 (push name names)))
+             +notes-hashtable+)
+    names))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -603,6 +624,7 @@ Aassuming 1 being the starting position to count."
 (defun visual-key-features (piano-key)
   (with-slots (xy wh octave color visual-grp group-pos finger-over) piano-key
     `(;; visicon features
+      isa (piano-key-features piano-key)
       screen-x    ,(x xy) 
       screen-y    ,(y xy)
       width       ,(x wh)
@@ -719,7 +741,10 @@ Aassuming 1 being the starting position to count."
 
 (defun make-piano-visible ()
   "To call early in the model definition to make all piano keys in the visicon."
-  (chunk-type (piano-key (:include visual-location)) octave visual-grp group-pos finger-over)
+  (chunk-type (piano-key-features (:include visual-location)) octave visual-grp group-pos finger-over)
+  (chunk-type (piano-key (:include visual-object)) octave visual-grp group-pos finger-over)
+  (octave-chunks)
+  (define-chunks-fct '(piano-key none black2 black3 midleft midright))
   (maphash (lambda (number piano-key)
              (declare (ignore number))
              (piano-key-to-visicon piano-key))
@@ -790,6 +815,14 @@ Aassuming 1 being the starting position to count."
 
 (defun fingers-down ()
   (hand-tracker-finger-down (motor-extension)))
+
+(defun finger-loc->key (hand finger)
+  "Returns the key associated to the current motor module hand finger location."
+  (gethash (finger-loc (the-hand hand) finger :current t) 
+           (piano-xy->key (piano))))
+
+(defun hand-pos->fingers (hand)
+  (hand-pos-fingers (loc (the-hand hand))))
 
 ;;;
 ;;; motor request utilities
@@ -925,8 +958,15 @@ Aassuming 1 being the starting position to count."
 ;;; style hand-position (updated-pos slot value)
 ;;; 
 (defun initialize-style-hand-pos (style)
-  (setf (updated-pos style)
-        (copy-hand-pos (hand-position (hand style) :current t))))
+  (let* ((hand-pos (make-hand-pos))
+         (hand (hand style))
+         (current-fingers (hand-pos->fingers hand))
+         fingers)
+    (dolist (finger +finger-names+                    
+                    (setf (hand-pos-fingers hand-pos) fingers
+                          (updated-pos style) hand-pos))
+      (when (finger-loc->key hand finger)
+        (push-last (copy-seq (find finger current-fingers :key 'first)) fingers)))))
 
 (defun hand-xy (style)
   (let ((hand-pos (updated-pos style)))
@@ -974,12 +1014,12 @@ closest to the middle finger xy location."
         (finger-offsets (finger-offsets style))
         new-finger-offsets)
     (dolist (finger +finger-names+ 
-                    (setf (finger-offsets style) new-finger-offsets))
-      (let ((finger-key    (slot-value style finger))
+                    (setf (finger-offsets style) new-finger-offsets))                 
+      (let ((key           (slot-value style finger))
             (finger-offset (find finger finger-offsets :key #'first)))
-        (if finger-key
-          (push-last (list finger (xy-offset hand-xy (key-xy finger-key)))
-                     new-finger-offsets)
+        (if key
+            (push-last (list finger (xy-offset hand-xy (key-xy key)))
+                       new-finger-offsets)
           (when finger-offset (push-last finger-offset new-finger-offsets)))))))
 
 ;;;
@@ -1095,11 +1135,28 @@ Specific style features to be handled with prepare-additional-features."
   "Which keys are associated to current finger locations."
   (let ((ht (make-hash-table :test #'equalp)))
     (dolist (hand +hand-names+ ht)
-      (dolist (finger +finger-names+)
-        (setf (gethash (list hand finger) ht)
-              (gethash (finger-loc (the-hand hand) finger :current t) 
-                       (piano-xy->key (piano))))))))
+      (let ((hand-pos-fingers (hand-pos->fingers hand)))
+        (dolist (finger +finger-names+)
+          (setf (gethash (list hand finger) ht)
+                (when (member finger hand-pos-fingers :key #'first)
+                  (gethash (finger-loc (the-hand hand) finger :current t) 
+                           (piano-xy->key (piano))))))))))
 
+(defun finger-is-down (hand-finger) 
+  (gethash hand-finger (hand-tracker-finger-down (motor-extension))))
+
+(defun show-hands-on-piano ()
+  "Usefull to verify where the fingers are."
+  (let (fingers)
+    (maphash (lambda (hand-finger key)
+               (when key
+                 (push (list hand-finger
+                             (if (finger-is-down hand-finger) 'down 'up)
+                             (key-xy key) 
+                             (key-note-name key)) fingers)))
+             (hands-on-piano))
+    (pprint (sort fingers #'< :key (lambda (lst) (x (third lst)))))))
+    
 (defun update-visicon ()
   (let ((hands-on-piano (hands-on-piano)))
     (maphash (lambda (hand-finger piano-key)
@@ -1224,7 +1281,7 @@ Specific style features to be handled with prepare-additional-features."
   (dolist (key (mapcar (lambda (finger) (slot-value style finger))
                        (fingers-in-request style)))
     (schedule-event-relative (seconds->ms (exec-time style)) 'midi-key-on :time-in-ms t :output nil
-                               :params (list key (velocity style)))))
+                             :params (list key (velocity style)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
