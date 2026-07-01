@@ -160,19 +160,185 @@
        state free
 
        ==>
-       -goal>
+       =goal>
+       step next1
 
        +manual>
        cmd press-keys-bloc
        hand right
        thumb =xy     
        )
+
+    (p next1
+       =goal>
+       step next1
+
+       ?manual>
+       state free
+
+       ==>
+      ; =goal>
+      ; step next2
+
+       -goal>
+
+       +manual>
+       cmd press-keys-bloc
+       hand right
+       middle e4     
+       )
+
+    (p next2
+       =goal>
+       step next2
+
+       ?manual>
+       state free
+
+       ==>
+       -goal>
+
+       +manual>
+       cmd release-keys
+       hand right
+       thumb c4
+       )
    
     ) 
   )
 
 
+(defun run-model3 ()
+  (model3)
 
+  (run 10)
+  )
+
+(defun model3 ()
+  "Playing a chord."
+  (clear-all)
+
+  ;; Creates a piano compomnent and piano device
+  (make-piano)
+
+  (define-model foo
+
+    ;(sgp :auto-attend t)
+
+    ;; Installs the piano device for the motor module
+    (install-device '("motor" "piano"))
+
+    ;; Fill the visison with piano keys.  
+    (make-piano-visible)
+
+    (chunk-type visual-note step octave visual-grp group-pos color)
+
+    (define-chunks look-for found play)
+
+    (define-chunks 
+     (goal isa visual-note step look-for octave o4 visual-grp black2 group-pos left color white))
+
+    (goal-focus goal)
+
+    (p look-for-key
+       =goal>
+       step look-for
+       octave     =octave
+       visual-grp =visual-grp 
+       group-pos  =group-pos 
+       color      =color
+
+
+       ?visual-location>
+       state free
+       buffer empty
+
+       ==>
+       =goal>
+       step found
+
+       +visual-location> 
+       octave     =octave
+       visual-grp =visual-grp 
+       group-pos  =group-pos 
+       color      =color
+       )
+
+    (p found-key-right
+       =goal>
+       step found
+
+       ?visual-location>
+       state free
+       buffer full
+
+       =visual-location>
+       screen-x =x
+       screen-y =y
+
+       !safe-bind! =xy (vector =x =y)
+
+       ?manual>
+       preparation free
+
+       ?manual-right>
+       processor free
+       execution free
+       
+
+       ==>
+       =goal>
+
+       =visual-location>
+
+       +manual>
+       cmd press-keys-bloc
+       hand right
+       thumb =xy
+       middle (white 3 up thumb)
+       pinkie (white 3 up middle)
+
+       )
+
+    (p found-key-left
+       =goal>
+       step found
+
+       ?visual-location>
+       state free
+       buffer full
+
+       =visual-location>
+       screen-x =x
+       screen-y =y
+
+       !safe-bind! =xy (vector =x =y)
+
+       ?manual>
+       preparation free
+
+       ?manual-right>
+       processor busy
+       execution busy
+       
+
+       ==>
+       -goal>
+
+       +manual>
+       cmd press-keys-bloc
+       hand left
+       thumb =xy
+       middle (white 3 down thumb)
+       pinkie (white 3 down middle)
+       )
+
+    
+
+    
+   
+    ) 
+  )
 
 
 

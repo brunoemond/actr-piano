@@ -547,7 +547,6 @@ Aassuming 1 being the starting position to count."
 ;;; sorting absolute and relative references
 ;;; sorting based on the number of reference jumps required to resolve all references. 
 ;;;
-
 (deftype absolute-reference ()
   '(or midi-number xy visual-pattern note-name))
 (deftype relative-reference ()
@@ -720,8 +719,8 @@ Aassuming 1 being the starting position to count."
                    (atom           (setf (gethash index-key-value indx) value))
                    (visual-pattern (setf (gethash index-key-value indx) value))
                    ; Note names are in lists
-                   (list           (dolist (i index-key-value)
-                                     (setf (gethash i indx) value))))))
+                   (list           (dolist (ikv index-key-value)
+                                     (setf (gethash ikv indx) value))))))
              ht)
     indx))
 
@@ -774,6 +773,8 @@ Aassuming 1 being the starting position to count."
 ;;; generic class, not indended to be instantiated.
 ;;; 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; change to include lead-hand and second-hand
+;;; 
 (defclass piano-hand-style (dual-hand-movement-style)
   ((hand :initarg :hand :accessor hand :initform nil
          :documentation "A hand name: right or left.")
@@ -816,14 +817,39 @@ Aassuming 1 being the starting position to count."
 (defun fingers-down ()
   (hand-tracker-finger-down (motor-extension)))
 
+(defun hand-hand-pos (hand)
+  (loc (the-hand hand)))
+
+(defun hand-hand-pos-fingers (hand)
+  (hand-pos-fingers (hand-hand-pos hand)))
+
 (defun finger-loc->key (hand finger)
   "Returns the key associated to the current motor module hand finger location."
-  (gethash (finger-loc (the-hand hand) finger :current t) 
-           (piano-xy->key (piano))))
+  (when (member finger (hand-hand-pos-fingers hand) :key #'first)
+    (gethash (finger-loc (the-hand hand) finger :current t) 
+             (piano-xy->key (piano)))))
 
-(defun hand-pos->fingers (hand)
-  (hand-pos-fingers (loc (the-hand hand))))
+;(defmethod check-jam ((module dual-execution-motor-module))
+;  nil)
 
+;;;
+;;; audio module utilities
+;;;
+(defun audio-module ()
+  (get-module :audio))
+
+(defun event-info (sound-event)
+  (let (other-features) 
+    (dolist (feature (other-features sound-event)
+                     `(:onset ,(onset sound-event) ,@other-features))
+      (when (member (second feature) '(frequency amplitude))
+        (setf other-features (append (list (intern (symbol-name (second feature)) :keyword) 
+                                           (third feature))
+                                     other-features))))))
+                                     
+(defun sound-events ()
+  (mapcar #'event-info (detectable-audicon (audio-module))))
+  
 ;;;
 ;;; motor request utilities
 ;;;
@@ -866,6 +892,15 @@ Aassuming 1 being the starting position to count."
 ;;;
 ;;; piano-hand-style utilities
 ;;;
+(defun style-hand-pos (style)
+  (updated-pos style))
+
+(defun set-style-hand-pos (style hand-pos)
+  (setf (updated-pos style) (typep->value hand-pos 'hand-pos)))
+
+(defsetf style-hand-pos set-style-hand-pos)
+
+
 (defun collect-finger-values (piano-hand-style &key (not-null t))
   "Collects finger values, default to only non-null values."
   (let (collection)
@@ -897,7 +932,7 @@ Aassuming 1 being the starting position to count."
 
 (defun color-reference->key (reference style)
   (destructuring-bind (color color-distance direction from-finger) reference
-    (do* ((i (key-number (slot-value from-finger style))
+    (do* ((i (key-number (slot-value style from-finger))
              (ecase direction (up (1+ i)) (down (1- i))))
           (nb-color (if (equal color (number->key-color i))
                         1 0)
@@ -960,20 +995,20 @@ Aassuming 1 being the starting position to count."
 (defun initialize-style-hand-pos (style)
   (let* ((hand-pos (make-hand-pos))
          (hand (hand style))
-         (current-fingers (hand-pos->fingers hand))
+         (current-fingers (hand-hand-pos-fingers hand))
          fingers)
     (dolist (finger +finger-names+                    
                     (setf (hand-pos-fingers hand-pos) fingers
-                          (updated-pos style) hand-pos))
+                          (style-hand-pos style) hand-pos))
       (when (finger-loc->key hand finger)
         (push-last (copy-seq (find finger current-fingers :key 'first)) fingers)))))
 
 (defun hand-xy (style)
-  (let ((hand-pos (updated-pos style)))
+  (let ((hand-pos (style-hand-pos style)))
     (when hand-pos (hand-pos-loc hand-pos))))
 
 (defun set-hand-xy (style xy)
-  (let ((hand-pos (updated-pos style)))
+  (let ((hand-pos (style-hand-pos style)))
     (when hand-pos
       (setf (hand-pos-loc hand-pos)
             (typep->value xy 'xy)))))
@@ -981,11 +1016,11 @@ Aassuming 1 being the starting position to count."
 (defsetf hand-xy set-hand-xy)
 
 (defun finger-offsets (style)
-  (let ((hand-pos (updated-pos style)))
+  (let ((hand-pos (style-hand-pos style)))
     (when hand-pos (hand-pos-fingers hand-pos))))
 
 (defun set-finger-offsets (style offsets)
-  (let ((hand-pos (updated-pos style)))
+  (let ((hand-pos (style-hand-pos style)))
     (when hand-pos
       (setf (hand-pos-fingers hand-pos) offsets))))
 
@@ -1020,7 +1055,11 @@ closest to the middle finger xy location."
         (if key
             (push-last (list finger (xy-offset hand-xy (key-xy key)))
                        new-finger-offsets)
-          (when finger-offset (push-last finger-offset new-finger-offsets)))))))
+          (when finger-offset 
+            (push-last (list finger 
+                             (xy-offset hand-xy 
+                                        (key-xy (finger-loc->key (hand style) finger))))
+                       new-finger-offsets)))))))
 
 ;;;
 ;;; finger down state utilities
@@ -1028,13 +1067,13 @@ closest to the middle finger xy location."
 (defmethod adjust-finger-down-states ((style piano-hand-style))
   "Called by every piano-hand styles."
   (let* ((hand (hand style))
-         (hand-pos (copy-hand-pos (updated-pos style)))
+         (hand-pos (copy-hand-pos (style-hand-pos style)))
          (fingers-in-request (fingers-in-request style))
          (style-finger-down-state (finger-down-state style))
          updated-down-states)
     (dolist (finger +finger-names+ 
                     (setf (hand-pos-other hand-pos) `(extended-fingers ,@updated-down-states)
-                          (updated-pos style) hand-pos))
+                          (style-hand-pos style) hand-pos))
       (push-last 
        (if (member finger fingers-in-request)
            (list finger style-finger-down-state)
@@ -1088,8 +1127,10 @@ Specific style features to be handled with prepare-additional-features."
   (let ((count (if (eq (hand s1) (hand s2))
                    0 1)))
     (dolist (finger +finger-names+ count)
-      (when (not (equal (key-number (slot-value s1 finger))
-                        (key-number (slot-value s2 finger))))
+      (when (not (equal (and (slot-value s1 finger) 
+                             (key-number (slot-value s1 finger)))
+                        (and (slot-value s2 finger) 
+                             (key-number (slot-value s2 finger)))))
         (incf count)))))
 
 (defmethod feat-differences ((s1 piano-hand-style) (s2 piano-hand-style))
@@ -1110,7 +1151,7 @@ Specific style features to be handled with prepare-additional-features."
 ;;; before method: set hand position and update hand tracker
 (defun updated-finger-down-states (style)
   (remove 'extended-fingers
-          (hand-pos-other (updated-pos style))))
+          (hand-pos-other (style-hand-pos style))))
 
 (defun update-hand-tracker (style)
   "To be called in queue-output-events methods."
@@ -1125,7 +1166,7 @@ Specific style features to be handled with prepare-additional-features."
 (defmethod queue-output-events :before ((mtr-mod dual-execution-motor-module) (style piano-hand-style))
   "Every style requires to set a hand finger positions, and update the motor module hand tracler."
   (schedule-event-relative (seconds->ms (exec-time style)) 'set-hand-position :time-in-ms t :module :motor
-                           :destination :motor :params (list (hand style) (updated-pos style))
+                           :destination :motor :params (list (hand style) (style-hand-pos style))
                            :details (format nil "--> Setting ~S hand position" (hand style)) :output 'high)
   (schedule-event-relative (seconds->ms (exec-time style)) 'update-hand-tracker :time-in-ms t :module :motor
                            :params (list style) :details (format nil "--> Tracking ~S hand" (hand style)) :output 'high))
@@ -1135,7 +1176,7 @@ Specific style features to be handled with prepare-additional-features."
   "Which keys are associated to current finger locations."
   (let ((ht (make-hash-table :test #'equalp)))
     (dolist (hand +hand-names+ ht)
-      (let ((hand-pos-fingers (hand-pos->fingers hand)))
+      (let ((hand-pos-fingers (hand-hand-pos-fingers hand)))
         (dolist (finger +finger-names+)
           (setf (gethash (list hand finger) ht)
                 (when (member finger hand-pos-fingers :key #'first)
@@ -1222,7 +1263,10 @@ Specific style features to be handled with prepare-additional-features."
   (dolist (key (mapcar (lambda (finger) (slot-value style finger))
                        (fingers-in-request style)))
     (schedule-event-relative (seconds->ms (exec-time style)) 'midi-key-off :time-in-ms t :output nil
-                               :params (list key))))
+                               :params (list key))
+    ;(schedule-event-relative (seconds->ms (+ .01 (exec-time style))) 'show-sound-events :time-in-ms t :output 'high
+    ;                         :params (list (sound-events)))
+    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -1263,6 +1307,7 @@ Specific style features to be handled with prepare-additional-features."
              `(:both frequency ,frequency)
              `(:both amplitude ,amplitude))))))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; press-keys-bloc
@@ -1281,7 +1326,11 @@ Specific style features to be handled with prepare-additional-features."
   (dolist (key (mapcar (lambda (finger) (slot-value style finger))
                        (fingers-in-request style)))
     (schedule-event-relative (seconds->ms (exec-time style)) 'midi-key-on :time-in-ms t :output nil
-                             :params (list key (velocity style)))))
+                             :params (list key (velocity style))))
+  ;(schedule-event-relative (seconds->ms (+ .01 (exec-time style))) 'show-sound-events :time-in-ms t :output 'low
+  ;                         :priority :min
+  ;                         :params (list (sound-events)))
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -1334,8 +1383,12 @@ Specific style features to be handled with prepare-additional-features."
          ((null key) t)
       (schedule-event-relative (seconds->ms press-time) 'midi-key-on :time-in-ms t :output 'high
                                :params (list key (velocity style)) :details "--> midi-key-on")
+      ;(schedule-event-relative (seconds->ms press-time) 'show-sound-events :time-in-ms t :output 'high
+      ;                         :params (list (sound-events)))
       (schedule-event-relative (seconds->ms release-time) 'midi-key-off :time-in-ms t :output 'high
                                :params (list key) :details "--> midi-key-off")
+      ;(schedule-event-relative (seconds->ms release-time) 'show-sound-events :time-in-ms t :output 'high
+      ;                         :params (list (sound-events)))
       (schedule-event-relative (seconds->ms release-time) 'set-finger-is-up :time-in-ms t :output 'high
                                :params (list (hand style) key) :details "--> set-finger-is-up"))))
 
