@@ -12,8 +12,17 @@
 ;;; piano learning and performance using the ACT-R cognitive architecture. 
 ;;; The code has been tested for LispWorks ans Steel Bank Common Lisp.
 ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; History
+;;; 2026.07.12  BE Added require-extra function call to the beginning of the file. 
+;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (declaim (optimize safety))
+
+(require-extra "extended-motor-actions")
+;(require-extra "threads")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -121,10 +130,73 @@ From: GENERAL MIDI SYSTEM LEVEL 1 DEVELOPER GUIDELINES, 1998, p.9"
                 0 (+ *piano-maximum-dB* midi-dB))))
     (if (> db *room-dB*) db 0)))
 
+
+;;;
+;;; midi output
+;;;
+
+(ql:quickload :usocket)
+
+(defparameter *fs* nil)
+(defparameter *fs-bin* nil); "/opt/homebrew/Cellar/fluid-synth/2.5.2/bin/fluidsynth")
+(defparameter *soundfont* nil); "/library/audio/sounds/banks/FluidR3_GM/FluidR3_GM.sf2")
+
+(defun read-all-chars (stream)
+  (do* ((char (read-char-no-hang stream) (read-char-no-hang stream))
+        (chars (list char) (if char (append chars (list char)) chars)))
+       ((null char) chars)))
+
+(defun fs-stream-p (stream)
+  (typep stream 'system::pty-stream))
+
+(defun kill-fs-clean ()
+  (let ((process (mp:get-process "clean-stream")))
+    (when process (mp:process-kill process))))
+
+(defun fs-send (command)
+  (when (fs-stream-p *fs*)
+    (write-line command *fs*) 
+    (finish-output *fs*)
+    t))
+
+(defun fs-stop ()
+  (kill-fs-clean)
+  (fs-send "quit"))
+
+(defun fs-start ()
+  (when (fs-stream-p *fs*)
+    (fs-stop))
+  (let ((fs (sys:open-pipe
+             (format nil "~a -a coreaudio -g 1.0 -o audio.period-size=256 -o audio.periods=8 ~a"
+                     *fs-bin* *soundfont*)
+             :direction :io
+             :save-exit-status t
+             :use-pty t)))
+    (mp:process-run-function 
+     "clean-stream" ()  
+     (lambda () (loop (read-all-chars fs))))
+    (setf *fs* fs)))
+
+(defun fs-noteoff (key &key (chan 0))
+  (fs-send (format nil "noteoff ~S ~S" chan key)))
+
+(defun fs-noteon (key &key (chan 0) (vel 100) dur)
+  (fs-send (format nil "noteon ~S ~S ~S" chan key vel))
+  (when dur 
+    (sleep dur)
+    (fs-noteoff key :chan chan))
+  t)
+
+(defun play-note (action midi-mumber &key (velocity 100))
+  (ecase action
+    (noteon  (fs-noteon midi-mumber :vel velocity))
+    (noteoff (fs-noteoff midi-mumber))))
+  
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; music note
-;;; Music notations for midi-nimners
+;;; Music notations for midi-numbers
 ;;;
 (defconstant +sharp+ (code-char #x266F))
 (defconstant +flat+ (code-char #x266D))
@@ -832,13 +904,13 @@ Can be set in relationship to other visual elements such as a music sheet.")
       
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
-;;; two-hands-style
+;;; bimanual-style
 ;;; generic class, not indended to be instantiated.
 ;;; 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; change to include lead-hand and second-hand
 ;;; 
-(defclass two-hands-style (dual-hand-movement-style)
+(defclass bimanual-style (dual-hand-movement-style)
   ((hand :reader hand :initform 'both)
    (adjust-hands :accessor adjust-hands :initform t
                 :documentation "If non-nil, hand-pos-loc is computed based on hand finger positions, otherwise it is left unchanged." )
@@ -864,7 +936,7 @@ Can be set in relationship to other visual elements such as a music sheet.")
    :finger-based-style t
    :release-if-down nil
    :feature-slots nil
-   :style-name 'two-hands-style
+   :style-name 'bimanual-style
    :fprep-time 0.05
    :exec-time 0.05
    :exec2-time 0
@@ -981,7 +1053,7 @@ Can be set in relationship to other visual elements such as a music sheet.")
   (mapcar #'act-r-slot-spec-name 
           (request-slots act-r-chunk-spec)))
 
-(defmethod request-slot-names ((style two-hands-style))
+(defmethod request-slot-names ((style bimanual-style))
   (request-slot-names (request-spec style)))
 
 (defmethod request-slot-value ((act-r-chunk-spec act-r-chunk-spec) slot-name)
@@ -990,7 +1062,7 @@ Can be set in relationship to other visual elements such as a music sheet.")
       (error "Slot name ~S is not one of ~S." 
              slot-name (request-slot-names act-r-chunk-spec)))))
 
-(defmethod request-slot-value ((style two-hands-style) slot-name)
+(defmethod request-slot-value ((style bimanual-style) slot-name)
   (let ((spec (request-spec style)))
     (when spec (request-slot-value spec slot-name))))
 
@@ -1001,6 +1073,13 @@ Can be set in relationship to other visual elements such as a music sheet.")
       (when (member slot-name *style-finger-names*)
         (setf style-fingers
               (append style-fingers (list slot-name)))))))
+
+(defun request-finger-values (style)
+  (let (finger-values)
+    (dolist (finger (style-request-fingers style) finger-values)
+      (setf finger-values 
+            (append finger-values
+                    (list (list finger (request-slot-value style finger))))))))
 
 (defun make-dummy-slot (slot-spec)
   "Used for testing."
@@ -1220,15 +1299,15 @@ Can be set in relationship to other visual elements such as a music sheet.")
 ;;;
 ;;; prepare-additional-features
 ;;; 
-;(defmethod prepare-additional-features ((style two-hands-style))
-;  "No addtional features for two-hands-style, but subclasses might need it." )
+;(defmethod prepare-additional-features ((style bimanual-style))
+;  "No addtional features for bimanual-style, but subclasses might need it." )
               
 ;;;
 ;;; motor request -> style object
 ;;; 
-(defun verify-feature-slots (two-hands-style)
-  (dolist (slot-name (feature-slots two-hands-style) two-hands-style)
-    (unless (slot-value two-hands-style slot-name)
+(defun verify-feature-slots (bimanual-style)
+  (dolist (slot-name (feature-slots bimanual-style) bimanual-style)
+    (unless (slot-value bimanual-style slot-name)
       (error "A value for slot ~S is required." slot-name))))
 
 (defun valid-slot-names (request-spec)
@@ -1239,7 +1318,7 @@ Can be set in relationship to other visual elements such as a music sheet.")
               (append slot-names (list slot-name)))))))
 
 
-(defun make-two-hands-style (request-spec)
+(defun make-bimanual-style (request-spec)
   (let* ((style-name         (request-slot-value request-spec 'cmd))
          (style              (make-instance style-name :request-spec request-spec))
          (request-slot-names (valid-slot-names request-spec)))
@@ -1250,16 +1329,14 @@ Can be set in relationship to other visual elements such as a music sheet.")
 ;;;
 ;;; motor module request process
 ;;; 
-(defun process-two-hands-style-request (motor-module request-spec)
-  "Function to use with the extend-manual-requests macro.
-   Ex. (extend-manual-requests (request-command) process-two-hands-style-request)."
-  (let ((style (make-two-hands-style request-spec)))
+(defun process-bimanual-style-request (motor-module request-spec)
+  (let ((style (make-bimanual-style request-spec)))
     (unless (check-jam motor-module)
       (prepare-movement motor-module style))))
 
 (defgeneric resolve-references (style))
  
-(defmethod prepare-features ((mtr-mod motor-module) (style two-hands-style))
+(defmethod prepare-features ((mtr-mod motor-module) (style bimanual-style))
   "Called by PM. Common for all piano-hand styles. 
    Specific style features to be handled with prepare-additional-features."
   (resolve-references          style)
@@ -1273,7 +1350,7 @@ Can be set in relationship to other visual elements such as a music sheet.")
 
 
 ;;;
-;;; two-hands-style methods
+;;; bimanual-style methods
 ;;; 
 
 ;; add distances between hand-xy as a cost
@@ -1287,20 +1364,20 @@ Can be set in relationship to other visual elements such as a music sheet.")
                              (key-number (slot-value s2 finger)))))
         (incf count)))))
 
-(defmethod feat-differences ((s1 two-hands-style) (s2 two-hands-style))
+(defmethod feat-differences ((s1 bimanual-style) (s2 bimanual-style))
   (count-style-differences s1 s2))
 
-(defmethod compute-exec-time ((mtr-mod motor-module) (style two-hands-style))
+(defmethod compute-exec-time ((mtr-mod motor-module) (style bimanual-style))
   .05)
 
-(defmethod compute-finish-time ((mtr-mod motor-module) (style two-hands-style))
+(defmethod compute-finish-time ((mtr-mod motor-module) (style bimanual-style))
   .05)
 
-(defmethod compute-second-exec-time ((mtr-mod motor-module) (style two-hands-style))
+(defmethod compute-second-exec-time ((mtr-mod motor-module) (style bimanual-style))
   .05)
 
-(defmethod queue-output-events ((mtr-mod dual-execution-motor-module) (style two-hands-style))
-  "Need a specific method for two-hands-style in order to use before and after methods.")
+(defmethod queue-output-events ((mtr-mod dual-execution-motor-module) (style bimanual-style))
+  "Need a specific method for bimanual-style in order to use before and after methods.")
 
 
 ;;; before method: set hand position and update hand tracker
@@ -1324,15 +1401,15 @@ Can be set in relationship to other visual elements such as a music sheet.")
       (left  (intersection fingers-in-request *left-finger-names*))
       (right (intersection fingers-in-request *right-finger-names*)))))
 
-(defmethod queue-output-events :before ((mtr-mod dual-execution-motor-module) (style two-hands-style))
+(defmethod queue-output-events :before ((mtr-mod dual-execution-motor-module) (style bimanual-style))
   "Every style requires to set a hand finger positions, and update the motor module hand tracler."
   (dolist (hand *hand-names*)
     (when (fingers-need-update? style hand)
       (schedule-event-relative (seconds->ms (exec-time style)) 'set-hand-position :time-in-ms t :module :motor
                                :destination :motor :params (list hand (style-hand-pos style hand))
-                               :details (format nil "--> Setting ~S hand position" hand) :output 'high)
+                               :details (format nil "--> Setting ~S hand position" hand) :output 'low)
       (schedule-event-relative (seconds->ms (exec-time style)) 'update-hand-tracker :time-in-ms t :module :motor
-                               :params (list style) :details (format nil "--> Tracking ~S hand" hand) :output 'high))))
+                               :params (list style) :details (format nil "--> Tracking ~S hand" hand) :output 'low))))
 
 ;;; after method: update the visicon
 (defun hands-on-piano ()
@@ -1380,10 +1457,10 @@ Can be set in relationship to other visual elements such as a music sheet.")
                         (setf finger-over +actr-nil+)))))))
              (piano-number->key (piano)))))
 
-(defmethod queue-output-events :after ((mtr-mod dual-execution-motor-module) (style two-hands-style))
+(defmethod queue-output-events :after ((mtr-mod dual-execution-motor-module) (style bimanual-style))
   "Every style updates the visicon to reflect both hands finger positions."
   (schedule-event-relative (seconds->ms (exec-time style)) 'update-visicon :time-in-ms t :module :none
-                            :params nil :details "--> Updating the visicon" :output 'high))
+                            :params nil :details "--> Updating the visicon" :output 'low))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -1391,7 +1468,7 @@ Can be set in relationship to other visual elements such as a music sheet.")
 ;;; Style used to place the hands on the piano, no key pressed.
 ;;; 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defclass move-fingers-style (two-hands-style)
+(defclass move-fingers-style (bimanual-style)
   ()
   (:default-initargs
    :finger-down-state nil))
@@ -1400,7 +1477,7 @@ Can be set in relationship to other visual elements such as a music sheet.")
 (extend-manual-requests (move-fingers 
                          r-thumb r-index r-middle r-ring r-pinkie
                          l-thumb l-index l-middle l-ring l-pinkie) 
-                        process-two-hands-style-request)
+                        process-bimanual-style-request)
 ; (remove-manual-request move-fingers)
 
 (defmethod resolve-references ((style move-fingers))
@@ -1413,12 +1490,12 @@ Can be set in relationship to other visual elements such as a music sheet.")
               (piano-finger->key finger) key)))))
 
 (defmethod queue-output-events ((mtr-mod dual-execution-motor-module) (style move-fingers))
-  "Before and after methods of two-hands-style are applied.")
+  "Before and after methods of bimanual-style are applied.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; release-fingers
-;;; Style used to release multiple keys simultaneously using one hand.
+;;; Style used to release multiple keys simultaneously using two hand.
 ;;; The difference with the move-fingers style is that not all fingers 
 ;;; of the hand need to release keys.
 ;;; 
@@ -1427,7 +1504,7 @@ Can be set in relationship to other visual elements such as a music sheet.")
 (extend-manual-requests (release-fingers
                          r-thumb r-index r-middle r-ring r-pinkie
                          l-thumb l-index l-middle l-ring l-pinkie) 
-                        process-two-hands-style-request)
+                        process-bimanual-style-request)
 ; (remove-manual-request release-fingers)
 
 
@@ -1437,21 +1514,25 @@ Can be set in relationship to other visual elements such as a music sheet.")
     (setf (slot-value style finger) 
           (piano-finger->key finger))))
 
-(defun midi-key-off (piano-key)
-  (with-slots (audicon-id) piano-key
+(defun midi-key-off (motor-module piano-key)
+  (declare (ignore motor-module))
+  (with-slots (audicon-id number) piano-key
     (end-ongoing-sound audicon-id)
-    (setf audicon-id nil)))
+    (setf audicon-id nil)
+    (when (fs-stream-p *fs*)
+      (play-note 'noteoff number))))
 
 (defmethod queue-output-events ((mtr-mod dual-execution-motor-module) (style release-fingers))
-  "Before and after methods of two-hands-style are applied."
+  "Before and after methods of bimanual-style are applied."
   (dolist (key (mapcar (lambda (style-finger) (slot-value style style-finger))
                        (style-request-fingers style)))
     (schedule-event-relative (seconds->ms (exec-time style)) 'midi-key-off :time-in-ms t
                              :params (list key)
+                             :destination :motor
                              :details (format nil "--> Resease key ~S from ~S" 
                                               (key-note-name key)
                                               (key-finger-over key)) 
-                             :output 'high))
+                             :output 'low))
     ;(schedule-event-relative (seconds->ms (+ .01 (exec-time style))) 'show-sound-events :time-in-ms t :output 'high
     ;                         :params (list (sound-events)))
   )
@@ -1459,12 +1540,13 @@ Can be set in relationship to other visual elements such as a music sheet.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; press-fingers
-;;; Style used to press multiple keys using one hand.
+;;; Style used to press multiple keys using two hand.
 ;;; 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defclass press-fingers-style (two-hands-style)
+(defclass press-fingers-style (bimanual-style)
   ((velocity :initarg :velocity :accessor velocity :initform 100)
-   (duration :initarg :duration :accessor duration :initform nil))
+   ;(duration :initarg :duration :accessor duration :initform nil)
+   )
   (:default-initargs
    :finger-down-state t))
 
@@ -1473,7 +1555,7 @@ Can be set in relationship to other visual elements such as a music sheet.")
                          r-thumb r-index r-middle r-ring r-pinkie
                          l-thumb l-index l-middle l-ring l-pinkie
                          velocity) 
-                        process-two-hands-style-request)
+                        process-bimanual-style-request)
 ; (remove-manual-request press-fingers)
 
 
@@ -1498,8 +1580,9 @@ Can be set in relationship to other visual elements such as a music sheet.")
   (max (+ (pre-attentive-delay hertz min-cycles) 50)
        +min-attentive-time+))
 
-(defun midi-key-on (piano-key &optional (velocity 80))
-  (with-slots (frequency audicon-id) piano-key
+(defun midi-key-on (motor-module piano-key &optional (velocity 100))
+  (declare (ignore motor-module))
+  (with-slots (frequency audicon-id number) piano-key
     (let ((amplitude (velocity->db velocity)))
       (setf audicon-id
             (new-ongoing-sound 
@@ -1508,22 +1591,95 @@ Can be set in relationship to other visual elements such as a music sheet.")
              (attentive-delay frequency +min-cyles-for-pitch-detection+)
              (mp-time-ms) 'external 'tone +time-in-ms+
              `(:both frequency ,frequency)
-             `(:both amplitude ,amplitude))))))
+             `(:both amplitude ,amplitude))))
+    (when (fs-stream-p *fs*)
+      (play-note 'noteon number :velocity velocity))))
 
 (defmethod queue-output-events ((mtr-mod dual-execution-motor-module) (style press-fingers))
-  "Before and after methods of two-hands-style are applied."
-  (dolist (key (mapcar (lambda (style-finger) (piano-finger->key style-finger))
+  "Before and after methods of bimanual-style are applied."
+  (dolist (key (mapcar (lambda (style-finger) ;(piano-finger->key style-finger)
+                        (slot-value style style-finger) )
                        (style-request-fingers style)))
     (schedule-event-relative (seconds->ms (exec-time style)) 'midi-key-on :time-in-ms t
+                             :destination :motor
                              :params (list key (velocity style))
                              :details (format nil "--> Press key ~S with ~S" 
                                               (key-note-name key)
                                               (key-finger-over key)) 
-                             :output 'high))
+                             :output 'low))
   ;(schedule-event-relative (seconds->ms (+ .01 (exec-time style))) 'show-sound-events :time-in-ms t :output 'low
   ;                         :priority :min
   ;                         :params (list (sound-events)))
   )
 
 
-;;; eof
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; keys-action
+;;; Style combining key presses and key releases in one style.
+;;; 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defclass keys-action-style (bimanual-style)
+  ((velocity :initarg :velocity :accessor velocity :initform 100)
+   ;(duration :initarg :duration :accessor duration :initform nil)
+   )
+  (:default-initargs
+   :finger-down-state t))
+
+
+(defmethod resolve-references ((style keys-action-style))
+  (dolist (finger *style-finger-names* 
+                  (set-hands-keys style))
+    (setf (slot-value style finger) 
+          (piano-finger->key finger))))
+
+(defstyle keys-action keys-action-style)
+(extend-manual-requests (keys-action 
+                         r-thumb r-index r-middle r-ring r-pinkie
+                         l-thumb l-index l-middle l-ring l-pinkie
+                         velocity) 
+                        process-bimanual-style-request)
+; (remove-manual-request keys-action)
+
+
+(defmethod queue-output-events ((mtr-mod dual-execution-motor-module) (style keys-action))
+  "Before and after methods of bimanual-style are applied."
+  (dolist (finger-action (request-finger-values style))
+    (let* ((finger (first finger-action))
+           (action (second finger-action))
+           (key (slot-value style finger)))
+      (ecase action
+        (press
+         (schedule-event-relative (seconds->ms (exec-time style)) 'midi-key-on :time-in-ms t
+                             :destination :motor
+                             :params (list key (velocity style))
+                             :details (format nil "--> Press key ~S with ~S" 
+                                              (key-note-name key)
+                                              (key-finger-over key)) 
+                             :output 'low))
+        (release 
+         (schedule-event-relative (seconds->ms (exec-time style)) 'midi-key-off :time-in-ms t
+                             :params (list key)
+                             :destination :motor
+                             :details (format nil "--> Resease key ~S from ~S" 
+                                              (key-note-name key)
+                                              (key-finger-over key)) 
+                             :output 'low))))))
+
+
+
+#|
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 2.1 of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public
+License along with this library; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+|#
